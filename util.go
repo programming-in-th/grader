@@ -16,7 +16,7 @@ func checkRootPermissions() {
 	cmd := exec.Command("id", "-u")
 	output, err := cmd.Output()
 	checkError(err)
-	// Output has a trailing \n, so we need to use a slice of one below the last index
+	// output has a trailing \n, so we need to use a slice of one below the last index
 	id, err := strconv.Atoi(string(output[:len(output)-1]))
 	checkError(err)
 	if id != 0 {
