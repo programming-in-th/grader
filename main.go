@@ -18,7 +18,6 @@ func main() {
 		"/home/szawinis/input",
 		"/home/szawinis/output",
 	)
-	// TODO: TRIM EVERY STRING in constructor
 	instance.IsolateInit()
 	status, metrics := instance.IsolateRun()
 	instance.IsolateCleanup()
@@ -27,5 +26,4 @@ func main() {
 
 // TODO: handle box ids
 // NOTE: filesystem access is already restricted for the use cases of freopen
-// NOTE2: isolate is required to be installed to /usr/bin
-// NOTE: input, output files are scoped within the box directory, but logFile is not
+// NOTE: isolate is required to be installed to /usr/bin

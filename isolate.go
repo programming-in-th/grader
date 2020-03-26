@@ -3,11 +3,58 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
 )
+
+/*----------------------TYPE DECLARATIONS----------------------*/
+
+// IsolateInstance defines an instance of an isolate lifecycle from initialization to cleanup.
+type IsolateInstance struct {
+	boxID             int
+	execFile          string
+	isolateExecFile   string
+	ioMode            int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
+	logFile           string // can be both absolute and relative path
+	timeLimit         float64
+	extraTime         float64 // extra time allowed before kill
+	memoryLimit       int
+	isolateDirectory  string // box directory of isolate. Must only be set through IsolateInit()
+	isolateInputFile  string // relative to box directory and must be within box directory as per isolate specs
+	isolateOutputFile string // relative to box directory and must be within box directory as per isolate specs
+	inputFile         string // Path to input file from test case
+	outputFile        string // Path to output file from test case
+}
+
+// IsolateRunStatus denotes possible states after isolate run
+type IsolateRunStatus string
+
+const (
+	// IsolateRunOK = No errors (but WA can be possible since checker has not been run)
+	IsolateRunOK IsolateRunStatus = "OK"
+	// IsolateRunTLE = Time limit exceeded
+	IsolateRunTLE IsolateRunStatus = "TLE"
+	// IsolateRunMLE = Memory limit exceeded
+	IsolateRunMLE IsolateRunStatus = "MLE"
+	// IsolateRunRE = Runtime error (any runtime error that is not MLE, including asserting false, invalid memory access, etc)
+	IsolateRunRE IsolateRunStatus = "RE"
+	// IsolateRunXX = Internal error of isolate
+	IsolateRunXX IsolateRunStatus = "XX"
+	// IsolateRunOther = Placeholder in case something went wrong in this script
+	IsolateRunOther IsolateRunStatus = "??"
+)
+
+// IsolateRunMetrics contains info on time and memory usage after running isolate
+type IsolateRunMetrics struct {
+	timeElapsed     float64
+	memoryUsage     int
+	wallTimeElapsed float64
+}
+
+/*----------------------END TYPE DECLARATIONS----------------------*/
 
 // NewIsolateInstance creates a new IsolateInstance
 func NewIsolateInstance(
@@ -179,10 +226,39 @@ func (instance *IsolateInstance) IsolateRun() (IsolateRunStatus, *IsolateRunMetr
 		return IsolateRunTLE, &metricObject
 	}
 	return IsolateRunOther, &metricObject
-	// If there are, terminate immediately with 0 points
-	// Otherwise, continue to checker script (which will take output from the file and process it)
-	// IMPORTANT: move output file out of box directory, otherwise it will be deleted after cleanup <- add as a doc comment
 }
 
+func checkError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func checkRootPermissions() {
+	cmd := exec.Command("id", "-u")
+	output, err := cmd.Output()
+	checkError(err)
+	// output has a trailing \n, so we need to use a slice of one below the last index
+	id, err := strconv.Atoi(string(output[:len(output)-1]))
+	checkError(err)
+	if id != 0 {
+		log.Fatal("Grader must be run as root")
+	}
+}
+
+func (instance *IsolateInstance) checkErrorAndCleanup(err error) {
+	if err != nil {
+		instance.IsolateCleanup()
+		log.Fatal(err)
+	}
+}
+
+func (instance *IsolateInstance) throwLogFileCorruptedAndCleanup() {
+	instance.IsolateCleanup()
+	log.Fatal("Log file corrupted")
+}
+
+// TODO: Handle IO if needed (test for file IO already handled by the program)
+// TODO: move output file out of box directory, otherwise it will be deleted after cleanup
 // TODO: errors need to be handled more gracefully -- all currently fatal errors should be returned as a status instead
 // Specs for little details and protocols should be put in a separate document
