@@ -2,10 +2,10 @@ package main
 
 // IsolateInstance defines an instance of an isolate lifecycle from initialization to cleanup.
 type IsolateInstance struct {
+	boxID             int
 	execFile          string
 	isolateExecFile   string // Overriden during initialization
 	ioMode            int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
-	boxID             int
 	logFile           string // any path
 	timeLimit         float64
 	extraTime         float64 // TODO: interface this with grader

@@ -26,12 +26,12 @@ func checkRootPermissions() {
 
 func (instance *IsolateInstance) checkErrorAndCleanup(err error) {
 	if err != nil {
-		instance.isolateCleanup()
+		instance.IsolateCleanup()
 		log.Fatal(err)
 	}
 }
 
 func (instance *IsolateInstance) throwLogFileCorruptedAndCleanup() {
-	instance.isolateCleanup()
+	instance.IsolateCleanup()
 	log.Fatal("Log file corrupted")
 }

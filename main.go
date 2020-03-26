@@ -5,23 +5,23 @@ import (
 )
 
 func main() {
-	checkRootPermissions()
-	instance := &IsolateInstance{
-		boxID:             2,
-		execFile:          "/home/szawinis/program",
-		isolateExecFile:   "program",
-		ioMode:            1,
-		logFile:           "meta",
-		timeLimit:         5,
-		memoryLimit:       262144,
-		inputFile:         "/home/szawinis/input",
-		outputFile:        "/home/szawinis/output",
-		isolateInputFile:  "input",
-		isolateOutputFile: "output"}
+	instance := NewIsolateInstance(
+		2,
+		"/home/szawinis/program",
+		1,
+		"meta",
+		5,
+		0,
+		262144,
+		"input",
+		"output",
+		"/home/szawinis/input",
+		"/home/szawinis/output",
+	)
 	// TODO: TRIM EVERY STRING in constructor
-	instance.isolateInit()
-	status, metrics := instance.isolateRun()
-	instance.isolateCleanup()
+	instance.IsolateInit()
+	status, metrics := instance.IsolateRun()
+	instance.IsolateCleanup()
 	fmt.Println(status, metrics)
 }
 

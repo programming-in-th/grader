@@ -9,6 +9,63 @@ import (
 	"syscall"
 )
 
+// NewIsolateInstance creates a new IsolateInstance
+func NewIsolateInstance(
+	boxID int,
+	execFile string,
+	ioMode int,
+	logFile string,
+	timeLimit float64,
+	extraTime float64,
+	memoryLimit int,
+	isolateInputFile string,
+	isolateOutputFile string,
+	inputFile string,
+	outputFile string) *IsolateInstance {
+
+	return &IsolateInstance{
+		boxID:             boxID,
+		execFile:          execFile,
+		ioMode:            ioMode,
+		logFile:           logFile,
+		timeLimit:         timeLimit,
+		extraTime:         extraTime,
+		memoryLimit:       memoryLimit,
+		isolateInputFile:  isolateInputFile,
+		isolateOutputFile: isolateOutputFile,
+		inputFile:         inputFile,
+		outputFile:        outputFile,
+		isolateExecFile:   "program",
+	}
+}
+
+// IsolateInit initializes the new box directory for the IsolateInstance
+func (instance *IsolateInstance) IsolateInit() {
+	// Isolate needs to be run as root
+	checkRootPermissions()
+
+	// Run init command
+	bytes, err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--init").Output()
+	outputString := strings.TrimSpace(string(bytes))
+	instance.isolateDirectory = fmt.Sprintf("%s/box/", outputString)
+	instance.checkErrorAndCleanup(err)
+
+	// Copy input, output and executable files to isolate directory
+	// TODO: validate nonexistent input file
+	err = exec.Command("cp", instance.inputFile, instance.isolateDirectory+instance.isolateInputFile).Run()
+	instance.checkErrorAndCleanup(err)
+	err = exec.Command("cp", instance.outputFile, instance.isolateDirectory+instance.isolateOutputFile).Run()
+	instance.checkErrorAndCleanup(err)
+	err = exec.Command("cp", instance.execFile, instance.isolateDirectory+instance.isolateExecFile).Run()
+	instance.checkErrorAndCleanup(err)
+}
+
+// IsolateCleanup clears up the box directory for other instances to use
+func (instance *IsolateInstance) IsolateCleanup() { // needs to handle case where it can't clean up
+	err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
+	instance.checkErrorAndCleanup(err)
+}
+
 func (instance *IsolateInstance) buildIsolateArguments() []string {
 	args := make([]string, 0)
 	args = append(args, []string{"-b", strconv.Itoa(instance.boxID)}...)
@@ -25,7 +82,44 @@ func (instance *IsolateInstance) buildIsolateArguments() []string {
 	return args
 }
 
-func (instance *IsolateInstance) isolateRun() (IsolateRunStatus, *IsolateRunMetrics) {
+func (instance *IsolateInstance) checkXX(props map[string]string) bool {
+	status, statusExists := props["status"]
+	return statusExists && strings.TrimSpace(status) == "XX"
+}
+
+func (instance *IsolateInstance) checkTLE(props map[string]string) bool {
+	timeElapsedString, timeExists := props["time"]
+	status := strings.TrimSpace(props["status"])
+	killed := strings.TrimSpace(props["killed"])
+	timeElapsed, err := strconv.ParseFloat(timeElapsedString, 64)
+	if !timeExists || err != nil || (timeElapsed > instance.timeLimit && !(killed == "1" && status == "TO")) {
+		instance.throwLogFileCorruptedAndCleanup()
+	}
+	return status == "TO"
+}
+
+func (instance *IsolateInstance) checkRE(props map[string]string) (int, string) {
+	memoryUsageString, maxRssExists := props["max-rss"]
+	exitSig, exitSigExists := props["exitsig"]
+	status := props["status"]
+	memoryUsage, err := strconv.Atoi(memoryUsageString)
+	if !maxRssExists || err != nil ||
+		((memoryUsage > instance.memoryLimit || exitSigExists || strings.TrimSpace(status) == "SG") &&
+			!(exitSigExists && status == "SG")) ||
+		(exitSigExists && strings.TrimSpace(exitSig) != "6" && strings.TrimSpace(exitSig) != "11") {
+		instance.throwLogFileCorruptedAndCleanup()
+	}
+	if !exitSigExists {
+		return 0, ""
+	} else if memoryUsage > instance.memoryLimit {
+		return 1, strings.TrimSpace(exitSig)
+	} else {
+		return 2, strings.TrimSpace(exitSig)
+	}
+}
+
+// IsolateRun runs isolate on an IsolateInstance
+func (instance *IsolateInstance) IsolateRun() (IsolateRunStatus, *IsolateRunMetrics) {
 	// Run isolate --run
 	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.isolateExecFile}...)
 	var exitCode int
@@ -88,25 +182,6 @@ func (instance *IsolateInstance) isolateRun() (IsolateRunStatus, *IsolateRunMetr
 	// If there are, terminate immediately with 0 points
 	// Otherwise, continue to checker script (which will take output from the file and process it)
 	// IMPORTANT: move output file out of box directory, otherwise it will be deleted after cleanup <- add as a doc comment
-}
-
-func (instance *IsolateInstance) isolateInit() {
-	bytes, err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--init").Output()
-	outputString := strings.TrimSpace(string(bytes))
-	instance.isolateDirectory = fmt.Sprintf("%s/box/", outputString)
-	instance.checkErrorAndCleanup(err)
-	// TODO: validate nonexistent input file
-	err = exec.Command("cp", instance.inputFile, instance.isolateDirectory+instance.isolateInputFile).Run()
-	instance.checkErrorAndCleanup(err)
-	err = exec.Command("cp", instance.outputFile, instance.isolateDirectory+instance.isolateOutputFile).Run()
-	instance.checkErrorAndCleanup(err)
-	err = exec.Command("cp", instance.execFile, instance.isolateDirectory+instance.isolateExecFile).Run()
-	instance.checkErrorAndCleanup(err)
-}
-
-func (instance *IsolateInstance) isolateCleanup() { // needs to handle case where it can't clean up
-	err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
-	instance.checkErrorAndCleanup(err)
 }
 
 // TODO: errors need to be handled more gracefully -- all currently fatal errors should be returned as a status instead
