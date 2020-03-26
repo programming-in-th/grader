@@ -25,16 +25,16 @@ func NewIsolateInstance(
 
 	return &IsolateInstance{
 		boxID:             boxID,
-		execFile:          execFile,
+		execFile:          strings.TrimSpace(execFile),
 		ioMode:            ioMode,
-		logFile:           logFile,
+		logFile:           strings.TrimSpace(logFile),
 		timeLimit:         timeLimit,
 		extraTime:         extraTime,
 		memoryLimit:       memoryLimit,
-		isolateInputFile:  isolateInputFile,
-		isolateOutputFile: isolateOutputFile,
-		inputFile:         inputFile,
-		outputFile:        outputFile,
+		isolateInputFile:  strings.TrimSpace(isolateInputFile),
+		isolateOutputFile: strings.TrimSpace(isolateOutputFile),
+		inputFile:         strings.TrimSpace(inputFile),
+		outputFile:        strings.TrimSpace(outputFile),
 		isolateExecFile:   "program",
 	}
 }
