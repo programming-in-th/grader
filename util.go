@@ -23,3 +23,15 @@ func checkRootPermissions() {
 		log.Fatal("Grader must be run as root")
 	}
 }
+
+func (instance *IsolateInstance) checkErrorAndCleanup(err error) {
+	if err != nil {
+		instance.isolateCleanup()
+		log.Fatal(err)
+	}
+}
+
+func (instance *IsolateInstance) throwLogFileCorruptedAndCleanup() {
+	instance.isolateCleanup()
+	log.Fatal("Log file corrupted")
+}
