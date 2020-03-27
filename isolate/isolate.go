@@ -26,7 +26,7 @@ type Instance struct {
 	isolateInputFile  string // relative to box directory and must be within box directory as per isolate specs
 	isolateOutputFile string // relative to box directory and must be within box directory as per isolate specs
 	inputFile         string // Path to input file from test case
-	outputFile        string // Path to output file from test case
+	outputFile        string // Path to copy output file to after isolate --run is done
 }
 
 // RunStatus denotes possible states after isolate run
