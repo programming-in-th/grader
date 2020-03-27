@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/programming-in-th/grader/isolate"
 )
 
 func main() {
-	instance := NewIsolateInstance(
+	instance := isolate.NewInstance(
 		2,
 		"/home/szawinis/program",
 		1,
@@ -18,9 +20,11 @@ func main() {
 		"/home/szawinis/input",
 		"/home/szawinis/output",
 	)
-	instance.IsolateInit()
-	status, metrics := instance.IsolateRun()
-	instance.IsolateCleanup()
+
+	instance.Init()
+	status, metrics := instance.Run()
+	instance.Cleanup()
+
 	fmt.Println(status, metrics)
 }
 

@@ -1,4 +1,4 @@
-package main
+package isolate
 
 import (
 	"fmt"
@@ -12,8 +12,8 @@ import (
 
 /*----------------------TYPE DECLARATIONS----------------------*/
 
-// IsolateInstance defines an instance of an isolate lifecycle from initialization to cleanup.
-type IsolateInstance struct {
+// Instance defines an instance of an isolate lifecycle from initialization to cleanup.
+type Instance struct {
 	boxID             int
 	execFile          string
 	isolateExecFile   string
@@ -29,26 +29,26 @@ type IsolateInstance struct {
 	outputFile        string // Path to output file from test case
 }
 
-// IsolateRunStatus denotes possible states after isolate run
-type IsolateRunStatus string
+// RunStatus denotes possible states after isolate run
+type RunStatus string
 
 const (
 	// IsolateRunOK = No errors (but WA can be possible since checker has not been run)
-	IsolateRunOK IsolateRunStatus = "OK"
+	IsolateRunOK RunStatus = "OK"
 	// IsolateRunTLE = Time limit exceeded
-	IsolateRunTLE IsolateRunStatus = "TLE"
+	IsolateRunTLE RunStatus = "TLE"
 	// IsolateRunMLE = Memory limit exceeded
-	IsolateRunMLE IsolateRunStatus = "MLE"
+	IsolateRunMLE RunStatus = "MLE"
 	// IsolateRunRE = Runtime error (any runtime error that is not MLE, including asserting false, invalid memory access, etc)
-	IsolateRunRE IsolateRunStatus = "RE"
+	IsolateRunRE RunStatus = "RE"
 	// IsolateRunXX = Internal error of isolate
-	IsolateRunXX IsolateRunStatus = "XX"
+	IsolateRunXX RunStatus = "XX"
 	// IsolateRunOther = Placeholder in case something went wrong in this script
-	IsolateRunOther IsolateRunStatus = "??"
+	IsolateRunOther RunStatus = "??"
 )
 
-// IsolateRunMetrics contains info on time and memory usage after running isolate
-type IsolateRunMetrics struct {
+// RunMetrics contains info on time and memory usage after running isolate
+type RunMetrics struct {
 	timeElapsed     float64
 	memoryUsage     int
 	wallTimeElapsed float64
@@ -56,8 +56,8 @@ type IsolateRunMetrics struct {
 
 /*----------------------END TYPE DECLARATIONS----------------------*/
 
-// NewIsolateInstance creates a new IsolateInstance
-func NewIsolateInstance(
+// NewInstance creates a new Instance
+func NewInstance(
 	boxID int,
 	execFile string,
 	ioMode int,
@@ -68,9 +68,9 @@ func NewIsolateInstance(
 	isolateInputFile string,
 	isolateOutputFile string,
 	inputFile string,
-	outputFile string) *IsolateInstance {
+	outputFile string) *Instance {
 
-	return &IsolateInstance{
+	return &Instance{
 		boxID:             boxID,
 		execFile:          strings.TrimSpace(execFile),
 		ioMode:            ioMode,
@@ -86,8 +86,8 @@ func NewIsolateInstance(
 	}
 }
 
-// IsolateInit initializes the new box directory for the IsolateInstance
-func (instance *IsolateInstance) IsolateInit() {
+// Init initializes the new box directory for the Instance
+func (instance *Instance) Init() {
 	// Isolate needs to be run as root
 	checkRootPermissions()
 
@@ -107,13 +107,13 @@ func (instance *IsolateInstance) IsolateInit() {
 	instance.checkErrorAndCleanup(err)
 }
 
-// IsolateCleanup clears up the box directory for other instances to use
-func (instance *IsolateInstance) IsolateCleanup() { // needs to handle case where it can't clean up
+// Cleanup clears up the box directory for other instances to use
+func (instance *Instance) Cleanup() { // needs to handle case where it can't clean up
 	err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
 	instance.checkErrorAndCleanup(err)
 }
 
-func (instance *IsolateInstance) buildIsolateArguments() []string {
+func (instance *Instance) buildIsolateArguments() []string {
 	args := make([]string, 0)
 	args = append(args, []string{"-b", strconv.Itoa(instance.boxID)}...)
 	args = append(args, []string{"-M", instance.logFile}...)
@@ -129,12 +129,12 @@ func (instance *IsolateInstance) buildIsolateArguments() []string {
 	return args
 }
 
-func (instance *IsolateInstance) checkXX(props map[string]string) bool {
+func (instance *Instance) checkXX(props map[string]string) bool {
 	status, statusExists := props["status"]
 	return statusExists && strings.TrimSpace(status) == "XX"
 }
 
-func (instance *IsolateInstance) checkTLE(props map[string]string) bool {
+func (instance *Instance) checkTLE(props map[string]string) bool {
 	timeElapsedString, timeExists := props["time"]
 	status := strings.TrimSpace(props["status"])
 	killed := strings.TrimSpace(props["killed"])
@@ -145,7 +145,7 @@ func (instance *IsolateInstance) checkTLE(props map[string]string) bool {
 	return status == "TO"
 }
 
-func (instance *IsolateInstance) checkRE(props map[string]string) (int, string) {
+func (instance *Instance) checkRE(props map[string]string) (int, string) {
 	memoryUsageString, maxRssExists := props["max-rss"]
 	exitSig, exitSigExists := props["exitsig"]
 	status := props["status"]
@@ -165,8 +165,8 @@ func (instance *IsolateInstance) checkRE(props map[string]string) (int, string) 
 	}
 }
 
-// IsolateRun runs isolate on an IsolateInstance
-func (instance *IsolateInstance) IsolateRun() (IsolateRunStatus, *IsolateRunMetrics) {
+// Run runs isolate on an Instance
+func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 	// Run isolate --run
 	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.isolateExecFile}...)
 	var exitCode int
@@ -210,7 +210,7 @@ func (instance *IsolateInstance) IsolateRun() (IsolateRunStatus, *IsolateRunMetr
 	instance.checkErrorAndCleanup(err)
 	wallTimeElapsed, err := strconv.ParseFloat(wallTimeElapsedString, 64)
 	instance.checkErrorAndCleanup(err)
-	metricObject := IsolateRunMetrics{timeElapsed: timeElapsed, memoryUsage: memoryUsage, wallTimeElapsed: wallTimeElapsed}
+	metricObject := RunMetrics{timeElapsed: timeElapsed, memoryUsage: memoryUsage, wallTimeElapsed: wallTimeElapsed}
 
 	// Check status and return
 	if exitCode == 0 {
@@ -246,15 +246,15 @@ func checkRootPermissions() {
 	}
 }
 
-func (instance *IsolateInstance) checkErrorAndCleanup(err error) {
+func (instance *Instance) checkErrorAndCleanup(err error) {
 	if err != nil {
-		instance.IsolateCleanup()
+		instance.Cleanup()
 		log.Fatal(err)
 	}
 }
 
-func (instance *IsolateInstance) throwLogFileCorruptedAndCleanup() {
-	instance.IsolateCleanup()
+func (instance *Instance) throwLogFileCorruptedAndCleanup() {
+	instance.Cleanup()
 	log.Fatal("Log file corrupted")
 }
 
