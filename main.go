@@ -11,7 +11,7 @@ func main() {
 		2,
 		"/home/szawinis/program",
 		1,
-		"meta",
+		"/home/szawinis/meta",
 		5,
 		0,
 		262144,
@@ -22,11 +22,13 @@ func main() {
 		"/home/szawinis/output",
 	)
 
-	instance.Init()
-	status, metrics := instance.Run()
-	instance.Cleanup()
-
-	fmt.Println(status, metrics)
+	initSuccess := instance.Init()
+	if initSuccess {
+		status, metrics := instance.Run()
+		fmt.Println(status, metrics)
+	}
+	cleanupSuccess := instance.Cleanup()
+	fmt.Println(cleanupSuccess)
 }
 
 // TODO: handle box ids

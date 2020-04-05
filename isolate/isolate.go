@@ -90,30 +90,42 @@ func NewInstance(
 }
 
 // Init initializes the new box directory for the Instance
-func (instance *Instance) Init() {
+func (instance *Instance) Init() bool { // returns true if finished OK, otherwise returns false
 	// Isolate needs to be run as root
-	checkRootPermissions()
+	isRoot := checkRootPermissions()
+	if !isRoot {
+		return false
+	}
 
 	// Run init command
 	bytes, err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--init").Output()
 	outputString := strings.TrimSpace(string(bytes))
 	instance.isolateDirectory = fmt.Sprintf("%s/box/", outputString)
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return false
+	}
 
 	// Copy input, output and executable files to isolate directory
 	// TODO: validate nonexistent input file
 	err = exec.Command("cp", instance.inputFile, instance.isolateDirectory+instance.isolateInputFile).Run()
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return false
+	}
 	err = exec.Command("cp", instance.outputFile, instance.isolateDirectory+instance.isolateOutputFile).Run()
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return false
+	}
 	err = exec.Command("cp", instance.execFile, instance.isolateDirectory+instance.isolateExecFile).Run()
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 // Cleanup clears up the box directory for other instances to use
-func (instance *Instance) Cleanup() { // needs to handle case where it can't clean up
+func (instance *Instance) Cleanup() bool { // returns true if finished OK, otherwise returns false
 	err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
-	instance.checkErrorAndCleanup(err)
+	return err == nil
 }
 
 func (instance *Instance) buildIsolateArguments() []string {
@@ -137,15 +149,15 @@ func (instance *Instance) checkXX(props map[string]string) bool {
 	return statusExists && strings.TrimSpace(status) == "XX"
 }
 
-func (instance *Instance) checkTLE(props map[string]string) bool {
+func (instance *Instance) checkTLE(props map[string]string) (bool, bool) {
 	timeElapsedString, timeExists := props["time"]
 	status := strings.TrimSpace(props["status"])
 	killed := strings.TrimSpace(props["killed"])
 	timeElapsed, err := strconv.ParseFloat(timeElapsedString, 64)
 	if !timeExists || err != nil || (timeElapsed > instance.timeLimit && !(killed == "1" && status == "TO")) {
-		instance.throwLogFileCorruptedAndCleanup()
+		return false, true // second parameter denotes whether or not log file is corrupted
 	}
-	return status == "TO"
+	return status == "TO", false
 }
 
 func (instance *Instance) checkRE(props map[string]string) (int, string) {
@@ -157,14 +169,14 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 		((memoryUsage > instance.memoryLimit || exitSigExists || strings.TrimSpace(status) == "SG") &&
 			!(exitSigExists && status == "SG")) ||
 		(exitSigExists && strings.TrimSpace(exitSig) != "6" && strings.TrimSpace(exitSig) != "11") {
-		instance.throwLogFileCorruptedAndCleanup()
+		return -1, "" // -1 status means log file was corrupted
 	}
 	if !exitSigExists {
 		return 0, ""
 	} else if memoryUsage > instance.memoryLimit {
-		return 1, strings.TrimSpace(exitSig)
+		return 1, strings.TrimSpace(exitSig) // MLE
 	} else {
-		return 2, strings.TrimSpace(exitSig)
+		return 2, strings.TrimSpace(exitSig) // RE (assert or segmentation fault)
 	}
 }
 
@@ -181,7 +193,9 @@ func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 
 	// Read and parse log file into a map
 	logFileBytes, err := ioutil.ReadFile(instance.logFile)
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return IsolateRunOther, nil
+	}
 	contents := string(logFileBytes)
 	props := make(map[string]string)
 	for _, line := range strings.Split(contents, "\n") { // PITFALL: What if the file doesn't follow the correct format?
@@ -190,7 +204,7 @@ func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 		}
 		pair := strings.Split(line, ":")
 		if len(pair) != 2 {
-			instance.throwLogFileCorruptedAndCleanup()
+			return IsolateRunOther, nil
 		}
 		props[strings.TrimSpace(pair[0])] = strings.TrimSpace(pair[1])
 	}
@@ -205,20 +219,28 @@ func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 	timeElapsedString, timeElapsedExists := props["time"]
 	wallTimeElapsedString, wallTimeElapsedExists := props["time-wall"]
 	if !memoryUsageExists || !timeElapsedExists || !wallTimeElapsedExists {
-		instance.throwLogFileCorruptedAndCleanup()
+		return IsolateRunOther, nil
 	}
 	memoryUsage, err := strconv.Atoi(memoryUsageString)
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return IsolateRunOther, nil
+	}
 	timeElapsed, err := strconv.ParseFloat(timeElapsedString, 64)
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return IsolateRunOther, nil
+	}
 	wallTimeElapsed, err := strconv.ParseFloat(wallTimeElapsedString, 64)
-	instance.checkErrorAndCleanup(err)
+	if err != nil {
+		return IsolateRunOther, nil
+	}
 	metricObject := RunMetrics{timeElapsed: timeElapsed, memoryUsage: memoryUsage, wallTimeElapsed: wallTimeElapsed}
 
 	// Check status and return
 	if exitCode == 0 {
 		err = exec.Command("cp", instance.isolateDirectory+instance.isolateOutputFile, instance.resultOutputFile).Run()
-		instance.checkErrorAndCleanup(err)
+		if err != nil {
+			return IsolateRunOther, nil
+		}
 		return IsolateRunOK, &metricObject
 	}
 	code, _ := instance.checkRE(props)
@@ -226,11 +248,15 @@ func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 		return IsolateRunMLE, &metricObject
 	} else if code == 2 {
 		return IsolateRunRE, &metricObject
+	} else if code == -1 {
+		return IsolateRunOther, nil
 	}
-	if instance.checkTLE(props) {
+	if tle, logFileCorrupted := instance.checkTLE(props); tle {
 		return IsolateRunTLE, &metricObject
+	} else if logFileCorrupted {
+		return IsolateRunOther, nil
 	}
-	return IsolateRunOther, &metricObject
+	return IsolateRunOther, nil
 }
 
 func checkError(err error) {
@@ -239,31 +265,15 @@ func checkError(err error) {
 	}
 }
 
-func checkRootPermissions() {
+func checkRootPermissions() bool {
 	cmd := exec.Command("id", "-u")
 	output, err := cmd.Output()
 	checkError(err)
 	// output has a trailing \n, so we need to use a slice of one below the last index
 	id, err := strconv.Atoi(string(output[:len(output)-1]))
 	checkError(err)
-	if id != 0 {
-		log.Fatal("Grader must be run as root")
-	}
-}
-
-func (instance *Instance) checkErrorAndCleanup(err error) {
-	if err != nil {
-		instance.Cleanup()
-		log.Fatal(err)
-	}
-}
-
-func (instance *Instance) throwLogFileCorruptedAndCleanup() {
-	instance.Cleanup()
-	log.Fatal("Log file corrupted")
+	return id == 0
 }
 
 // TODO: Handle IO if needed (test for file IO already handled by the program)
-// TODO: move output file out of box directory, otherwise it will be deleted after cleanup
-// TODO: errors need to be handled more gracefully -- all currently fatal errors should be returned as a status instead
 // Specs for little details and protocols should be put in a separate document
