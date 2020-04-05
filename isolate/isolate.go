@@ -217,6 +217,8 @@ func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 
 	// Check status and return
 	if exitCode == 0 {
+		err = exec.Command("cp", instance.isolateDirectory+instance.isolateOutputFile, instance.resultOutputFile).Run()
+		instance.checkErrorAndCleanup(err)
 		return IsolateRunOK, &metricObject
 	}
 	code, _ := instance.checkRE(props)
