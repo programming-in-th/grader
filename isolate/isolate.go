@@ -18,13 +18,14 @@ type Instance struct {
 	execFile          string
 	isolateExecFile   string
 	ioMode            int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
-	logFile           string // can be both absolute and relative path
+	logFile           string // Can be both absolute and relative path
 	timeLimit         float64
-	extraTime         float64 // extra time allowed before kill
+	extraTime         float64 // Extra time allowed before kill
 	memoryLimit       int
-	isolateDirectory  string // box directory of isolate. Must only be set through IsolateInit()
-	isolateInputFile  string // relative to box directory and must be within box directory as per isolate specs
-	isolateOutputFile string // relative to box directory and must be within box directory as per isolate specs
+	isolateDirectory  string // Box directory of isolate. Must only be set through IsolateInit()
+	isolateInputFile  string // Relative to box directory and must be within box directory as per isolate specs
+	isolateOutputFile string // Relative to box directory and must be within box directory as per isolate specs
+	resultOutputFile  string // Target path of output file after copying out of box directory
 	inputFile         string // Path to input file from test case
 	outputFile        string // Path to output file from test case
 }
@@ -67,6 +68,7 @@ func NewInstance(
 	memoryLimit int,
 	isolateInputFile string,
 	isolateOutputFile string,
+	resultOutputFile string,
 	inputFile string,
 	outputFile string) *Instance {
 
@@ -80,6 +82,7 @@ func NewInstance(
 		memoryLimit:       memoryLimit,
 		isolateInputFile:  strings.TrimSpace(isolateInputFile),
 		isolateOutputFile: strings.TrimSpace(isolateOutputFile),
+		resultOutputFile:  strings.TrimSpace(resultOutputFile),
 		inputFile:         strings.TrimSpace(inputFile),
 		outputFile:        strings.TrimSpace(outputFile),
 		isolateExecFile:   "program",

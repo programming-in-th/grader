@@ -17,6 +17,7 @@ func main() {
 		262144,
 		"input",
 		"output",
+		"/home/szawinis/resulting_output",
 		"/home/szawinis/input",
 		"/home/szawinis/output",
 	)
