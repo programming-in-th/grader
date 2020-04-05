@@ -8,6 +8,7 @@ import (
 
 func main() {
 	instance := isolate.NewInstance(
+		"/usr/bin/isolate",
 		2,
 		"/home/szawinis/program",
 		1,
@@ -33,4 +34,3 @@ func main() {
 
 // TODO: handle box ids
 // NOTE: filesystem access is already restricted for the use cases of freopen
-// NOTE: isolate is required to be installed to /usr/bin

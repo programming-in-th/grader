@@ -14,9 +14,10 @@ import (
 
 // Instance defines an instance of an isolate lifecycle from initialization to cleanup.
 type Instance struct {
+	isolateExecPath   string
 	boxID             int
 	execFile          string
-	isolateExecFile   string
+	boxBinaryName     string
 	ioMode            int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
 	logFile           string // Can be both absolute and relative path
 	timeLimit         float64
@@ -59,6 +60,7 @@ type RunMetrics struct {
 
 // NewInstance creates a new Instance
 func NewInstance(
+	isolateExecPath string,
 	boxID int,
 	execFile string,
 	ioMode int,
@@ -73,6 +75,7 @@ func NewInstance(
 	outputFile string) *Instance {
 
 	return &Instance{
+		isolateExecPath:   isolateExecPath,
 		boxID:             boxID,
 		execFile:          strings.TrimSpace(execFile),
 		ioMode:            ioMode,
@@ -85,7 +88,7 @@ func NewInstance(
 		resultOutputFile:  strings.TrimSpace(resultOutputFile),
 		inputFile:         strings.TrimSpace(inputFile),
 		outputFile:        strings.TrimSpace(outputFile),
-		isolateExecFile:   "program",
+		boxBinaryName:     "program",
 	}
 }
 
@@ -115,7 +118,7 @@ func (instance *Instance) Init() bool { // returns true if finished OK, otherwis
 	if err != nil {
 		return false
 	}
-	err = exec.Command("cp", instance.execFile, instance.isolateDirectory+instance.isolateExecFile).Run()
+	err = exec.Command("cp", instance.execFile, instance.isolateDirectory+instance.boxBinaryName).Run()
 	if err != nil {
 		return false
 	}
@@ -183,7 +186,7 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 // Run runs isolate on an Instance
 func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 	// Run isolate --run
-	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.isolateExecFile}...)
+	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.boxBinaryName}...)
 	var exitCode int
 	if err := exec.Command("isolate", args...).Run(); err != nil {
 		exitCode = err.(*exec.ExitError).Sys().(syscall.WaitStatus).ExitStatus()
