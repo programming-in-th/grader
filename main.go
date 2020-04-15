@@ -23,8 +23,8 @@ func main() {
 		"/home/szawinis/output",
 	)
 
-	initSuccess := instance.Init()
-	if initSuccess {
+	err := instance.Init()
+	if err == nil {
 		status, metrics := instance.Run()
 		fmt.Println(status, metrics)
 	}

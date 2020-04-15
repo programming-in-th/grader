@@ -3,11 +3,13 @@ package isolate
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/pkg/errors"
 )
 
 /*----------------------TYPE DECLARATIONS----------------------*/
@@ -93,42 +95,45 @@ func NewInstance(
 }
 
 // Init initializes the new box directory for the Instance
-func (instance *Instance) Init() bool { // returns true if finished OK, otherwise returns false
+func (instance *Instance) Init() error { // returns true if finished OK, otherwise returns false
 	// Isolate needs to be run as root
-	isRoot := checkRootPermissions()
+	isRoot, err := checkRootPermissions()
+	if err != nil {
+		errors.Wrap(err, "Unable to check root permissions")
+	}
 	if !isRoot {
-		return false
+		return errors.New("Init failed: isolate must be run as root")
 	}
 
 	// Run init command
 	bytes, err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--init").Output()
 	outputString := strings.TrimSpace(string(bytes))
-	instance.isolateDirectory = fmt.Sprintf("%s/box/", outputString)
+	instance.isolateDirectory = path.Join(outputString, "box")
 	if err != nil {
-		return false
+		return errors.Wrap(err, "Unable to run isolate --init command")
 	}
 
 	// Copy input, output and executable files to isolate directory
 	// TODO: validate nonexistent input file
-	err = exec.Command("cp", instance.inputFile, instance.isolateDirectory+instance.isolateInputFile).Run()
+	err = exec.Command("cp", instance.inputFile, path.Join(instance.isolateDirectory, instance.isolateInputFile)).Run()
 	if err != nil {
-		return false
+		return errors.Wrap(err, "Unable to copy input file into box directory")
 	}
-	err = exec.Command("cp", instance.outputFile, instance.isolateDirectory+instance.isolateOutputFile).Run()
+	err = exec.Command("cp", instance.outputFile, path.Join(instance.isolateDirectory, instance.isolateOutputFile)).Run()
 	if err != nil {
-		return false
+		return errors.Wrap(err, "Unable to copy output file into box directory")
 	}
-	err = exec.Command("cp", instance.execFile, instance.isolateDirectory+instance.boxBinaryName).Run()
+	err = exec.Command("cp", instance.execFile, path.Join(instance.isolateDirectory, instance.boxBinaryName)).Run()
 	if err != nil {
-		return false
+		return errors.Wrap(err, "Unable to copy exec file into box directory")
 	}
-	return true
+	return nil
 }
 
 // Cleanup clears up the box directory for other instances to use
-func (instance *Instance) Cleanup() bool { // returns true if finished OK, otherwise returns false
+func (instance *Instance) Cleanup() error { // returns true if finished OK, otherwise returns false
 	err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
-	return err == nil
+	return err
 }
 
 func (instance *Instance) buildIsolateArguments() []string {
@@ -240,6 +245,7 @@ func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 
 	// Check status and return
 	if exitCode == 0 {
+		// IMPORTANT: copy output out of isolate directory
 		err = exec.Command("cp", instance.isolateDirectory+instance.isolateOutputFile, instance.resultOutputFile).Run()
 		if err != nil {
 			return IsolateRunOther, nil
@@ -262,20 +268,18 @@ func (instance *Instance) Run() (RunStatus, *RunMetrics) {
 	return IsolateRunOther, nil
 }
 
-func checkError(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func checkRootPermissions() bool {
+func checkRootPermissions() (bool, error) {
 	cmd := exec.Command("id", "-u")
 	output, err := cmd.Output()
-	checkError(err)
+	if err != nil {
+		return false, errors.Wrap(err, "checkRootPermissions failed: unable to get current user id")
+	}
 	// output has a trailing \n, so we need to use a slice of one below the last index
 	id, err := strconv.Atoi(string(output[:len(output)-1]))
-	checkError(err)
-	return id == 0
+	if err != nil {
+		return false, errors.Wrap(err, "checkRootPermissions failed: unable to parse current user id")
+	}
+	return id == 0, nil
 }
 
 // TODO: Handle IO if needed (test for file IO already handled by the program)
