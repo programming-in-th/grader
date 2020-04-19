@@ -33,22 +33,22 @@ type Instance struct {
 	outputFile        string // Path to copy output file to after isolate --run is done
 }
 
-// RunStatus denotes possible states after isolate run
-type RunStatus string
+// RunVerdict denotes possible states after isolate run
+type RunVerdict string
 
 const (
 	// IsolateRunOK = No errors (but WA can be possible since checker has not been run)
-	IsolateRunOK RunStatus = "OK"
+	IsolateRunOK RunVerdict = "OK"
 	// IsolateRunTLE = Time limit exceeded
-	IsolateRunTLE RunStatus = "TLE"
+	IsolateRunTLE RunVerdict = "TLE"
 	// IsolateRunMLE = Memory limit exceeded
-	IsolateRunMLE RunStatus = "MLE"
+	IsolateRunMLE RunVerdict = "MLE"
 	// IsolateRunRE = Runtime error (any runtime error that is not MLE, including asserting false, invalid memory access, etc)
-	IsolateRunRE RunStatus = "RE"
+	IsolateRunRE RunVerdict = "RE"
 	// IsolateRunXX = Internal error of isolate
-	IsolateRunXX RunStatus = "XX"
+	IsolateRunXX RunVerdict = "XX"
 	// IsolateRunOther = Placeholder in case something went wrong in this script
-	IsolateRunOther RunStatus = "??"
+	IsolateRunOther RunVerdict = "??"
 )
 
 // RunMetrics contains info on time and memory usage after running isolate
@@ -189,7 +189,7 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 }
 
 // Run runs isolate on an Instance
-func (instance *Instance) Run() (RunStatus, *RunMetrics) {
+func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	// Run isolate --run
 	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.boxBinaryName}...)
 	var exitCode int
