@@ -30,7 +30,6 @@ type Instance struct {
 	isolateOutputFile string // Relative to box directory and must be within box directory as per isolate specs
 	resultOutputFile  string // Target path of output file after copying out of box directory
 	inputFile         string // Path to input file from test case
-	outputFile        string // Path to copy output file to after isolate --run is done
 }
 
 // RunVerdict denotes possible states after isolate run
@@ -73,8 +72,7 @@ func NewInstance(
 	isolateInputFile string,
 	isolateOutputFile string,
 	resultOutputFile string,
-	inputFile string,
-	outputFile string) *Instance {
+	inputFile string) *Instance {
 
 	return &Instance{
 		isolateExecPath:   isolateExecPath,
@@ -89,7 +87,6 @@ func NewInstance(
 		isolateOutputFile: strings.TrimSpace(isolateOutputFile),
 		resultOutputFile:  strings.TrimSpace(resultOutputFile),
 		inputFile:         strings.TrimSpace(inputFile),
-		outputFile:        strings.TrimSpace(outputFile),
 		boxBinaryName:     "program",
 	}
 }
@@ -118,10 +115,6 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 	err = exec.Command("cp", instance.inputFile, path.Join(instance.isolateDirectory, instance.isolateInputFile)).Run()
 	if err != nil {
 		return errors.Wrap(err, "Unable to copy input file into box directory")
-	}
-	err = exec.Command("cp", instance.outputFile, path.Join(instance.isolateDirectory, instance.isolateOutputFile)).Run()
-	if err != nil {
-		return errors.Wrap(err, "Unable to copy output file into box directory")
 	}
 	err = exec.Command("cp", instance.execFile, path.Join(instance.isolateDirectory, instance.boxBinaryName)).Run()
 	if err != nil {

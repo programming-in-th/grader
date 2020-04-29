@@ -1,35 +1,10 @@
 package main
 
-import (
-	"fmt"
-
-	"github.com/programming-in-th/grader/isolate"
-)
+import "github.com/programming-in-th/grader/grader"
 
 func main() {
-	instance := isolate.NewInstance(
-		"/usr/bin/isolate",
-		2,
-		"/home/szawinis/program",
-		1,
-		"/home/szawinis/meta",
-		5,
-		0,
-		262144,
-		"input",
-		"output",
-		"/home/szawinis/resulting_output",
-		"/home/szawinis/input",
-		"/home/szawinis/output",
-	)
-
-	err := instance.Init()
-	if err == nil {
-		status, metrics := instance.Run()
-		fmt.Println(status, metrics)
-	}
-	cleanupSuccess := instance.Cleanup()
-	fmt.Println(cleanupSuccess)
+	jq := grader.NewJobQueue(5)
+	grader.GradeSubmission("parade", "cpp", &jq)
 }
 
 // TODO: handle box ids
