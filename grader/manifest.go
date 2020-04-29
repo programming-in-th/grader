@@ -6,12 +6,13 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"sort"
 	"sync"
 
 	"github.com/pkg/errors"
 )
 
-const taskBasePath = "/home/szawinis/grader/tasks" // IMPORTANT: CHANGE LATER
+const taskBasePath = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/" // IMPORTANT: CHANGE LATER
 
 // RunVerdict denotes the possible verdicts after running, including Correct, WA, TLE, RE and other errors
 // This does not include CE
@@ -48,10 +49,9 @@ type ProblemManifest struct {
 	id          string
 	timeLimit   float64
 	memoryLimit int
-	fullScore   float64
 	langSupport []string
-	testInputs  []string // absolute/relative paths to inputs
-	testOutputs []string // absolute/relative paths to solution outputs
+	testInputs  []string // names of input files (DO NOT specify path)
+	testOutputs []string // names of output files (DO NOT specify path)
 	// TODO: Add test groups
 
 	compileCommands map[string]string // Compile commands for each language
@@ -59,13 +59,41 @@ type ProblemManifest struct {
 	checkCommand    string
 }
 
+func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
+	ret := make([]string, 0)
+	for _, v := range inp {
+		ret = append(ret, v.(string))
+	}
+	return ret
+}
+
 func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 	manifestFileBytes, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to read manifest.json file at %s", manifestPath)
 	}
+
+	var v interface{}
+	json.Unmarshal(manifestFileBytes, &v)
+	data := v.(map[string]interface{})
+
 	var manifestInstance ProblemManifest
-	json.Unmarshal(manifestFileBytes, &manifestInstance)
+	manifestInstance.id = data["id"].(string)
+	manifestInstance.timeLimit = data["timeLimit"].(float64)
+	manifestInstance.memoryLimit = int(data["memoryLimit"].(float64))
+	manifestInstance.langSupport = convInterfaceSlicetoStringSlice(data["langSupport"].([]interface{}))
+	manifestInstance.testInputs = convInterfaceSlicetoStringSlice(data["testInputs"].([]interface{}))
+	manifestInstance.testOutputs = convInterfaceSlicetoStringSlice(data["testOutputs"].([]interface{}))
+	manifestInstance.compileCommands =
+		func(inp map[string]interface{}) map[string]string {
+			ret := make(map[string]string)
+			for k, v := range inp {
+				ret[k] = v.(string)
+			}
+			return ret
+		}(data["compileCommands"].(map[string]interface{}))
+	manifestInstance.execFilePath = data["execFilePath"].(string)
+	manifestInstance.checkCommand = data["checkCommand"].(string)
 
 	// Check if compile command keys matches language support
 	compileCommandKeys := make([]string, len(manifestInstance.compileCommands))
@@ -74,7 +102,11 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 		compileCommandKeys[i] = k
 		i++
 	}
-	if reflect.DeepEqual(compileCommandKeys, manifestInstance.langSupport) {
+
+	sort.Slice(compileCommandKeys, func(i, j int) bool { return compileCommandKeys[i] < compileCommandKeys[j] })
+	sort.Slice(manifestInstance.langSupport, func(i, j int) bool { return manifestInstance.langSupport[i] < manifestInstance.langSupport[j] })
+
+	if !reflect.DeepEqual(compileCommandKeys, manifestInstance.langSupport) {
 		return nil, errors.New("Manifest.json invalid: every language supported must have compile commands and vice versa")
 	}
 
@@ -124,7 +156,7 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 				execFilePath:  manifestInstance.execFilePath,
 				timeLimit:     manifestInstance.timeLimit,
 				memoryLimit:   manifestInstance.memoryLimit,
-				testInput:     manifestInstance.testInputs[i],
+				testInput:     path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
 				resultChannel: ch,
 			}
 			testResults[i] = <-ch
