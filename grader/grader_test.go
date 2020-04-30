@@ -14,3 +14,13 @@ func TestReadManifest(t *testing.T) {
 	}
 	t.Log(manifestInstance)
 }
+
+func TestGradeSubmission(t *testing.T) {
+	jobQueue := NewJobQueue(5)
+	t.Log("Yo")
+	submissionResult, err := GradeSubmission("asdf", "cpp", &jobQueue)
+	if err != nil {
+		t.Error("Error grading submission")
+	}
+	t.Log(submissionResult)
+}

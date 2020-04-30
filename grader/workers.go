@@ -1,7 +1,6 @@
 package grader
 
 import (
-	"fmt"
 	"log"
 	"sync"
 
@@ -55,7 +54,7 @@ func runIsolate(
 
 	err := instance.Init()
 	if err != nil {
-		fmt.Println("Error initializing isolate instance")
+		log.Println("Error initializing isolate instance")
 		job.resultChannel <- isolateTestResult{verdict: isolate.IsolateRunOther, metrics: nil}
 		return
 	}
@@ -75,7 +74,7 @@ func NewJobQueue(maxWorkers int) jobQueue {
 		for {
 			select { // TODO: done channel
 			case job := <-q:
-
+				// log.Println(job)
 				// Find minimum excludant in box ID pool
 				boxIDPool.mux.Lock()
 				mex := 0

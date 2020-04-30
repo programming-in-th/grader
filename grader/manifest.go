@@ -3,6 +3,7 @@ package grader
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"os/exec"
 	"path"
 	"reflect"
@@ -54,7 +55,7 @@ type ProblemManifest struct {
 	testOutputs []string // names of output files (DO NOT specify path)
 	// TODO: Add test groups
 
-	compileCommands map[string]string // Compile commands for each language
+	compileCommands map[string][]string // Compile commands for each language
 	execFilePath    string
 	checkCommand    string
 }
@@ -85,10 +86,10 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 	manifestInstance.testInputs = convInterfaceSlicetoStringSlice(data["testInputs"].([]interface{}))
 	manifestInstance.testOutputs = convInterfaceSlicetoStringSlice(data["testOutputs"].([]interface{}))
 	manifestInstance.compileCommands =
-		func(inp map[string]interface{}) map[string]string {
-			ret := make(map[string]string)
+		func(inp map[string]interface{}) map[string][]string {
+			ret := make(map[string][]string)
 			for k, v := range inp {
-				ret[k] = v.(string)
+				ret[k] = convInterfaceSlicetoStringSlice(v.([]interface{}))
 			}
 			return ret
 		}(data["compileCommands"].(map[string]interface{}))
@@ -134,9 +135,13 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 
 	// Compile program and return CE if fail
 	// TODO: Handle other languages that don't need compiling
-	err = exec.Command(manifestInstance.compileCommands[targLang]).Run()
-	if err != nil {
-		return &SubmissionResult{compileSuccessful: false}, nil
+	// TODO: Compile fails without absolute paths
+	if len(manifestInstance.compileCommands) != 0 {
+		err = exec.Command(manifestInstance.compileCommands[targLang][0], manifestInstance.compileCommands[targLang][1:]...).Run()
+		if err != nil {
+			log.Println("Compile error:", err)
+			return &SubmissionResult{compileSuccessful: false}, nil
+		}
 	}
 
 	// For each test case, run in isolate and send to checker
@@ -152,6 +157,7 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 				close(ch)
 				wg.Done()
 			}()
+			log.Println("Pushing job into job queue")
 			jq.q <- isolateJob{
 				execFilePath:  manifestInstance.execFilePath,
 				timeLimit:     manifestInstance.timeLimit,
