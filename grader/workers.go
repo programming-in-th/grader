@@ -4,6 +4,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/programming-in-th/grader/isolate"
 )
 
@@ -34,7 +35,7 @@ type jobQueue struct {
 func runIsolate(
 	job isolateJob,
 	boxID int,
-) {
+) error {
 
 	// Run a new isolate instance
 	instance := isolate.NewInstance(
@@ -54,9 +55,8 @@ func runIsolate(
 
 	err := instance.Init()
 	if err != nil {
-		log.Println("Error initializing isolate instance")
 		job.resultChannel <- isolateTestResult{verdict: isolate.IsolateRunOther, metrics: nil}
-		return
+		return errors.Wrap(err, "Error initializing isolate instance")
 	}
 	verdict, metrics := instance.Run()
 	err = instance.Cleanup()
@@ -64,6 +64,7 @@ func runIsolate(
 		log.Fatal("Error cleaning up isolate instance") // We make this fatal because if it keeps recurring, we can't recover from it
 	}
 	job.resultChannel <- isolateTestResult{verdict: verdict, metrics: metrics}
+	return nil
 }
 
 func NewJobQueue(maxWorkers int) jobQueue {
@@ -74,7 +75,6 @@ func NewJobQueue(maxWorkers int) jobQueue {
 		for {
 			select { // TODO: done channel
 			case job := <-q:
-				// log.Println(job)
 				// Find minimum excludant in box ID pool
 				boxIDPool.mux.Lock()
 				mex := 0
@@ -86,7 +86,13 @@ func NewJobQueue(maxWorkers int) jobQueue {
 					mex++
 				}
 				boxIDPool.mux.Unlock()
-				runIsolate(job, mex)
+				log.Println("Running job:")
+				log.Println(job)
+				log.Println("Box id for job:", mex)
+				err := runIsolate(job, mex)
+				if err != nil {
+					log.Fatalf("Error during judging")
+				}
 				boxIDPool.mux.Lock()
 				boxIDPool.boxIDs[mex] = false
 				boxIDPool.mux.Unlock()

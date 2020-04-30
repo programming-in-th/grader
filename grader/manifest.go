@@ -37,15 +37,14 @@ const (
 
 // SubmissionResult contains information about the result of a submission
 type SubmissionResult struct {
-	compileSuccessful bool     // If this is set to false, the other fields will be undefined
-	verdicts          []string // verdicts for each test case in each group
-	timeElapsed       []string // time elapsed for each test case in each group
-	memoryUsage       []string // memory usage for each test case in each group
+	compileSuccessful bool         // If this is set to false, the other fields will be undefined
+	verdicts          []RunVerdict // verdicts for each test case in each group
+	timeElapsed       []float64    // time elapsed for each test case in each group
+	memoryUsage       []int        // memory usage for each test case in each group
 }
 
 // ProblemManifest is a type binding for the manifest.json stored in each problem's directory.
 // This is mainly needed to validate the data in manifest.json
-// IMPORTANT: json.Unmarshal will make sure all attributes in manifest.json match the following names (case-insensitive)
 type ProblemManifest struct {
 	id          string
 	timeLimit   float64
@@ -157,19 +156,31 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 				close(ch)
 				wg.Done()
 			}()
-			log.Println("Pushing job into job queue")
-			jq.q <- isolateJob{
+			job := isolateJob{
 				execFilePath:  manifestInstance.execFilePath,
 				timeLimit:     manifestInstance.timeLimit,
 				memoryLimit:   manifestInstance.memoryLimit,
 				testInput:     path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
 				resultChannel: ch,
 			}
+			log.Println("Pushing job into job queue:")
+			log.Println(job)
+			jq.q <- job
 			testResults[i] = <-ch
 		}(i)
 	}
 	wg.Wait()
 
 	// TODO: Get outputs from checker and determine verdict
-	return nil, nil
+	result := SubmissionResult{
+		compileSuccessful: true,
+		timeElapsed:       make([]float64, 0),
+		memoryUsage:       make([]int, 0),
+	}
+	for i := 0; i < len(testResults); i++ {
+		result.timeElapsed = append(result.timeElapsed, testResults[i].metrics.TimeElapsed)
+		result.memoryUsage = append(result.memoryUsage, testResults[i].metrics.MemoryUsage)
+	}
+
+	return &result, nil
 }

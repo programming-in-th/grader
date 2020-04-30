@@ -17,7 +17,6 @@ func TestReadManifest(t *testing.T) {
 
 func TestGradeSubmission(t *testing.T) {
 	jobQueue := NewJobQueue(5)
-	t.Log("Yo")
 	submissionResult, err := GradeSubmission("asdf", "cpp", &jobQueue)
 	if err != nil {
 		t.Error("Error grading submission")

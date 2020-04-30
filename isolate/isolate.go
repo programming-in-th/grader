@@ -3,6 +3,7 @@ package isolate
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os/exec"
 	"path"
 	"strconv"
@@ -52,9 +53,8 @@ const (
 
 // RunMetrics contains info on time and memory usage after running isolate
 type RunMetrics struct {
-	timeElapsed     float64
-	memoryUsage     int
-	wallTimeElapsed float64
+	TimeElapsed float64
+	MemoryUsage int
 }
 
 /*----------------------END TYPE DECLARATIONS----------------------*/
@@ -93,21 +93,22 @@ func NewInstance(
 
 // Init initializes the new box directory for the Instance
 func (instance *Instance) Init() error { // returns true if finished OK, otherwise returns false
+	log.Println(instance.isolateExecPath)
 	// Isolate needs to be run as root
 	isRoot, err := checkRootPermissions()
 	if err != nil {
-		errors.Wrap(err, "Unable to check root permissions")
+		return errors.Wrap(err, "Unable to check root permissions")
 	}
 	if !isRoot {
 		return errors.New("Init failed: isolate must be run as root")
 	}
 
 	// Run init command
-	bytes, err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--init").Output()
+	bytes, err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--init").Output()
 	outputString := strings.TrimSpace(string(bytes))
 	instance.isolateDirectory = path.Join(outputString, "box")
 	if err != nil {
-		return errors.Wrap(err, "Unable to run isolate --init command")
+		return errors.Wrapf(err, "Unable to run isolate --init command. Does a box already exist? If so, you must clean up first.")
 	}
 
 	// Copy input, output and executable files to isolate directory
@@ -125,7 +126,7 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 
 // Cleanup clears up the box directory for other instances to use
 func (instance *Instance) Cleanup() error { // returns true if finished OK, otherwise returns false
-	err := exec.Command("isolate", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
+	err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
 	return err
 }
 
@@ -186,7 +187,7 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	// Run isolate --run
 	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.boxBinaryName}...)
 	var exitCode int
-	if err := exec.Command("isolate", args...).Run(); err != nil {
+	if err := exec.Command(instance.isolateExecPath, args...).Run(); err != nil {
 		exitCode = err.(*exec.ExitError).Sys().(syscall.WaitStatus).ExitStatus()
 	} else {
 		exitCode = 0
@@ -218,7 +219,7 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	// Validate fields and extract run metrics from the map
 	memoryUsageString, memoryUsageExists := props["max-rss"]
 	timeElapsedString, timeElapsedExists := props["time"]
-	wallTimeElapsedString, wallTimeElapsedExists := props["time-wall"]
+	_, wallTimeElapsedExists := props["time-wall"]
 	if !memoryUsageExists || !timeElapsedExists || !wallTimeElapsedExists {
 		return IsolateRunOther, nil
 	}
@@ -230,11 +231,10 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	if err != nil {
 		return IsolateRunOther, nil
 	}
-	wallTimeElapsed, err := strconv.ParseFloat(wallTimeElapsedString, 64)
 	if err != nil {
 		return IsolateRunOther, nil
 	}
-	metricObject := RunMetrics{timeElapsed: timeElapsed, memoryUsage: memoryUsage, wallTimeElapsed: wallTimeElapsed}
+	metricObject := RunMetrics{TimeElapsed: timeElapsed, MemoryUsage: memoryUsage}
 
 	// Check status and return
 	if exitCode == 0 {
