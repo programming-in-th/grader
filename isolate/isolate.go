@@ -17,20 +17,20 @@ import (
 
 // Instance defines an instance of an isolate lifecycle from initialization to cleanup.
 type Instance struct {
-	isolateExecPath   string
-	boxID             int
-	execFile          string
-	boxBinaryName     string
-	ioMode            int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
-	logFile           string // Can be both absolute and relative path
-	timeLimit         float64
-	extraTime         float64 // Extra time allowed before kill
-	memoryLimit       int
-	isolateDirectory  string // Box directory of isolate. Must only be set through IsolateInit()
-	isolateInputFile  string // Relative to box directory and must be within box directory as per isolate specs
-	isolateOutputFile string // Relative to box directory and must be within box directory as per isolate specs
-	resultOutputFile  string // Target path of output file after copying out of box directory
-	inputFile         string // Path to input file from test case
+	isolateExecPath        string
+	boxID                  int
+	userProgramPath        string
+	boxBinaryName          string
+	ioMode                 int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
+	logFile                string // Can be both absolute and relative path
+	timeLimit              float64
+	extraTime              float64 // Extra time allowed before kill
+	memoryLimit            int
+	isolateDirectory       string // Box directory of isolate. Must only be set through IsolateInit()
+	isolateInputName       string // Relative to box directory and must be within box directory as per isolate specs
+	isolateOutputName      string // Relative to box directory and must be within box directory as per isolate specs
+	resultOutputTargetPath string // Target path of output file after copying out of box directory
+	inputPath              string // Path to input file from test case
 }
 
 // RunVerdict denotes possible states after isolate run
@@ -75,19 +75,19 @@ func NewInstance(
 	inputFile string) *Instance {
 
 	return &Instance{
-		isolateExecPath:   isolateExecPath,
-		boxID:             boxID,
-		execFile:          strings.TrimSpace(execFile),
-		ioMode:            ioMode,
-		logFile:           strings.TrimSpace(logFile),
-		timeLimit:         timeLimit,
-		extraTime:         extraTime,
-		memoryLimit:       memoryLimit,
-		isolateInputFile:  strings.TrimSpace(isolateInputFile),
-		isolateOutputFile: strings.TrimSpace(isolateOutputFile),
-		resultOutputFile:  strings.TrimSpace(resultOutputFile),
-		inputFile:         strings.TrimSpace(inputFile),
-		boxBinaryName:     "program",
+		isolateExecPath:        isolateExecPath,
+		boxID:                  boxID,
+		userProgramPath:        strings.TrimSpace(execFile),
+		ioMode:                 ioMode,
+		logFile:                strings.TrimSpace(logFile),
+		timeLimit:              timeLimit,
+		extraTime:              extraTime,
+		memoryLimit:            memoryLimit,
+		isolateInputName:       strings.TrimSpace(isolateInputFile),
+		isolateOutputName:      strings.TrimSpace(isolateOutputFile),
+		resultOutputTargetPath: strings.TrimSpace(resultOutputFile),
+		inputPath:              strings.TrimSpace(inputFile),
+		boxBinaryName:          "program",
 	}
 }
 
@@ -113,11 +113,11 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 
 	// Copy input, output and executable files to isolate directory
 	// TODO: validate nonexistent input file
-	err = exec.Command("cp", instance.inputFile, path.Join(instance.isolateDirectory, instance.isolateInputFile)).Run()
+	err = exec.Command("cp", instance.inputPath, path.Join(instance.isolateDirectory, instance.isolateInputName)).Run()
 	if err != nil {
 		return errors.Wrap(err, "Unable to copy input file into box directory")
 	}
-	err = exec.Command("cp", instance.execFile, path.Join(instance.isolateDirectory, instance.boxBinaryName)).Run()
+	err = exec.Command("cp", instance.userProgramPath, path.Join(instance.isolateDirectory, instance.boxBinaryName)).Run()
 	if err != nil {
 		return errors.Wrap(err, "Unable to copy exec file into box directory")
 	}
@@ -139,8 +139,8 @@ func (instance *Instance) buildIsolateArguments() []string {
 	args = append(args, []string{"-w", strconv.FormatFloat(instance.timeLimit+5, 'f', -1, 64)}...) // five extra seconds for wall clock
 	args = append(args, []string{"-x", strconv.FormatFloat(instance.extraTime, 'f', -1, 64)}...)
 	if instance.ioMode == 1 {
-		args = append(args, []string{"-i", instance.isolateInputFile}...)
-		args = append(args, []string{"-o", instance.isolateOutputFile}...)
+		args = append(args, []string{"-i", instance.isolateInputName}...)
+		args = append(args, []string{"-o", instance.isolateOutputName}...)
 	}
 	fmt.Println(args)
 	return args
@@ -239,7 +239,7 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	// Check status and return
 	if exitCode == 0 {
 		// IMPORTANT: copy output out of isolate directory
-		err = exec.Command("cp", instance.isolateDirectory+instance.isolateOutputFile, instance.resultOutputFile).Run()
+		err = exec.Command("cp", instance.isolateDirectory+instance.isolateOutputName, instance.resultOutputTargetPath).Run()
 		if err != nil {
 			return IsolateRunOther, nil
 		}

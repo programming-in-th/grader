@@ -19,11 +19,11 @@ type isolateTestResult struct {
 }
 
 type isolateJob struct {
-	execFilePath  string
-	timeLimit     float64
-	memoryLimit   int
-	testInput     string
-	resultChannel chan isolateTestResult
+	userProgramPath string
+	timeLimit       float64
+	memoryLimit     int
+	inputPath       string
+	resultChannel   chan isolateTestResult
 }
 
 type jobQueue struct {
@@ -41,7 +41,7 @@ func runIsolate(
 	instance := isolate.NewInstance(
 		"/usr/bin/isolate",
 		boxID,
-		job.execFilePath,
+		job.userProgramPath,
 		1,
 		"/home/szawinis/meta", // CHANGE
 		job.timeLimit,
@@ -50,7 +50,7 @@ func runIsolate(
 		"input",
 		"output",
 		"/home/szawinis/resulting_output",
-		job.testInput,
+		job.inputPath,
 	)
 
 	err := instance.Init()
@@ -88,7 +88,6 @@ func worker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int) {
 			log.Printf("Running job on worker: %d", id)
 			log.Println(job)
 			log.Println("Box id for job:", mex)
-			// time.Sleep(time.Duration(rand.Intn(10)) * time.Microsecond)
 			err := runIsolate(job, mex)
 			if err != nil {
 				log.Fatalf("Error during judging %s", err)

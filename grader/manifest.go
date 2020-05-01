@@ -37,26 +37,27 @@ const (
 
 // SubmissionResult contains information about the result of a submission
 type SubmissionResult struct {
-	compileSuccessful bool         // If this is set to false, the other fields will be undefined
-	verdicts          []RunVerdict // verdicts for each test case in each group
-	timeElapsed       []float64    // time elapsed for each test case in each group
-	memoryUsage       []int        // memory usage for each test case in each group
+	CompileSuccessful bool         // If this is set to false, the other fields will be undefined
+	Verdicts          []RunVerdict // verdicts for each test case in each group
+	Scores            []float64
+	TimeElapsed       []float64 // time elapsed for each test case in each group
+	MemoryUsage       []int     // memory usage for each test case in each group
 }
 
-// ProblemManifest is a type binding for the manifest.json stored in each problem's directory.
+// problemManifest is a type binding for the manifest.json stored in each problem's directory.
 // This is mainly needed to validate the data in manifest.json
-type ProblemManifest struct {
+type problemManifest struct {
 	id          string
 	timeLimit   float64
 	memoryLimit int
 	langSupport []string
-	testInputs  []string // names of input files (DO NOT specify path)
-	testOutputs []string // names of output files (DO NOT specify path)
+	testInputs  []string // names of input files (inside of inputs/ DO NOT specify path)
+	testOutputs []string // names of output files (inside of outputs/ DO NOT specify path)
 	// TODO: Add test groups
 
 	compileCommands map[string][]string // Compile commands for each language
-	execFilePath    string
-	checkCommand    string
+	userProgramPath string
+	checkerPath     string
 }
 
 func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
@@ -67,7 +68,7 @@ func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
 	return ret
 }
 
-func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
+func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	manifestFileBytes, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to read manifest.json file at %s", manifestPath)
@@ -77,7 +78,7 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 	json.Unmarshal(manifestFileBytes, &v)
 	data := v.(map[string]interface{})
 
-	var manifestInstance ProblemManifest
+	var manifestInstance problemManifest
 	manifestInstance.id = data["id"].(string)
 	manifestInstance.timeLimit = data["timeLimit"].(float64)
 	manifestInstance.memoryLimit = int(data["memoryLimit"].(float64))
@@ -92,8 +93,8 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 			}
 			return ret
 		}(data["compileCommands"].(map[string]interface{}))
-	manifestInstance.execFilePath = data["execFilePath"].(string)
-	manifestInstance.checkCommand = data["checkCommand"].(string)
+	manifestInstance.userProgramPath = data["userProgramPath"].(string)
+	manifestInstance.checkerPath = data["checkerPath"].(string)
 
 	// Check if compile command keys matches language support
 	compileCommandKeys := make([]string, len(manifestInstance.compileCommands))
@@ -113,6 +114,7 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 	return &manifestInstance, nil
 }
 
+// GradeSubmission is the method that is called when the web server wants to request a problem to be judged
 func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*SubmissionResult, error) {
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
@@ -138,8 +140,8 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 	if len(manifestInstance.compileCommands) != 0 {
 		err = exec.Command(manifestInstance.compileCommands[targLang][0], manifestInstance.compileCommands[targLang][1:]...).Run()
 		if err != nil {
-			log.Println("Compile error:", err)
-			return &SubmissionResult{compileSuccessful: false}, nil
+			log.Println("Compile error. Make sure manifest.json is using absolute paths only\n", err)
+			return &SubmissionResult{CompileSuccessful: false}, nil
 		}
 	}
 
@@ -157,11 +159,11 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 				wg.Done()
 			}()
 			job := isolateJob{
-				execFilePath:  manifestInstance.execFilePath,
-				timeLimit:     manifestInstance.timeLimit,
-				memoryLimit:   manifestInstance.memoryLimit,
-				testInput:     path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
-				resultChannel: ch,
+				userProgramPath: manifestInstance.userProgramPath,
+				timeLimit:       manifestInstance.timeLimit,
+				memoryLimit:     manifestInstance.memoryLimit,
+				inputPath:       path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
+				resultChannel:   ch,
 			}
 			log.Println("Pushing job into job queue:")
 			log.Println(job)
@@ -173,13 +175,13 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 
 	// TODO: Get outputs from checker and determine verdict
 	result := SubmissionResult{
-		compileSuccessful: true,
-		timeElapsed:       make([]float64, 0),
-		memoryUsage:       make([]int, 0),
+		CompileSuccessful: true,
+		TimeElapsed:       make([]float64, 0),
+		MemoryUsage:       make([]int, 0),
 	}
 	for i := 0; i < len(testResults); i++ {
-		result.timeElapsed = append(result.timeElapsed, testResults[i].metrics.TimeElapsed)
-		result.memoryUsage = append(result.memoryUsage, testResults[i].metrics.MemoryUsage)
+		result.TimeElapsed = append(result.TimeElapsed, testResults[i].metrics.TimeElapsed)
+		result.MemoryUsage = append(result.MemoryUsage, testResults[i].metrics.MemoryUsage)
 	}
 
 	return &result, nil
