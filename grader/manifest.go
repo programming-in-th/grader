@@ -115,7 +115,7 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
-func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*SubmissionResult, error) {
+func GradeSubmission(problemID string, targLang string, ijq *isolateJobQueue) (*SubmissionResult, error) {
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
@@ -167,7 +167,7 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 			}
 			log.Println("Pushing job into job queue:")
 			log.Println(job)
-			jq.q <- job
+			ijq.q <- job
 			testResults[i] = <-ch
 		}(i)
 	}

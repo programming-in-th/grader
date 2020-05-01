@@ -16,7 +16,7 @@ func TestReadManifest(t *testing.T) {
 }
 
 func TestGradeSubmission(t *testing.T) {
-	jobQueue := NewJobQueue(5)
+	jobQueue := NewIsolateJobQueue(5)
 	submissionResult, err := GradeSubmission("asdf", "cpp", &jobQueue)
 	if err != nil {
 		t.Error("Error grading submission")
