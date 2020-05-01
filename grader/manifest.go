@@ -3,6 +3,7 @@ package grader
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"os/exec"
 	"path"
 	"reflect"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/isolate"
 )
 
 const taskBasePath = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/" // IMPORTANT: CHANGE LATER
@@ -21,9 +23,7 @@ type RunVerdict string
 
 const (
 	// CorrectVerdict means the program passed the test
-	CorrectVerdict RunVerdict = "P"
-	// PartialVerdict means the program got the answer partially correct
-	PartialVerdict RunVerdict = "~"
+	ACVerdict RunVerdict = "P"
 	// WAVerdict means the program got the wrong answer on the test
 	WAVerdict RunVerdict = "-"
 	// TLEVerdict means the program timed out
@@ -36,27 +36,27 @@ const (
 
 // SubmissionResult contains information about the result of a submission
 type SubmissionResult struct {
-	compileSuccessful bool     // If this is set to false, the other fields will be undefined
-	verdicts          []string // verdicts for each test case in each group
-	timeElapsed       []string // time elapsed for each test case in each group
-	memoryUsage       []string // memory usage for each test case in each group
+	CompileSuccessful bool         // If this is set to false, the other fields will be undefined
+	Verdicts          []RunVerdict // verdicts for each test case in each group
+	Scores            []float64
+	TimeElapsed       []float64 // time elapsed for each test case in each group
+	MemoryUsage       []int     // memory usage for each test case in each group
 }
 
-// ProblemManifest is a type binding for the manifest.json stored in each problem's directory.
+// problemManifest is a type binding for the manifest.json stored in each problem's directory.
 // This is mainly needed to validate the data in manifest.json
-// IMPORTANT: json.Unmarshal will make sure all attributes in manifest.json match the following names (case-insensitive)
-type ProblemManifest struct {
+type problemManifest struct {
 	id          string
 	timeLimit   float64
 	memoryLimit int
 	langSupport []string
-	testInputs  []string // names of input files (DO NOT specify path)
-	testOutputs []string // names of output files (DO NOT specify path)
+	testInputs  []string // names of input files (inside of inputs/ DO NOT specify path)
+	testOutputs []string // names of output files (inside of outputs/ DO NOT specify path)
 	// TODO: Add test groups
 
-	compileCommands map[string]string // Compile commands for each language
-	execFilePath    string
-	checkCommand    string
+	compileCommands map[string][]string // Compile commands for each language
+	userProgramPath string
+	checkerPath     string
 }
 
 func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
@@ -67,7 +67,7 @@ func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
 	return ret
 }
 
-func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
+func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	manifestFileBytes, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to read manifest.json file at %s", manifestPath)
@@ -77,7 +77,7 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 	json.Unmarshal(manifestFileBytes, &v)
 	data := v.(map[string]interface{})
 
-	var manifestInstance ProblemManifest
+	var manifestInstance problemManifest
 	manifestInstance.id = data["id"].(string)
 	manifestInstance.timeLimit = data["timeLimit"].(float64)
 	manifestInstance.memoryLimit = int(data["memoryLimit"].(float64))
@@ -85,15 +85,15 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 	manifestInstance.testInputs = convInterfaceSlicetoStringSlice(data["testInputs"].([]interface{}))
 	manifestInstance.testOutputs = convInterfaceSlicetoStringSlice(data["testOutputs"].([]interface{}))
 	manifestInstance.compileCommands =
-		func(inp map[string]interface{}) map[string]string {
-			ret := make(map[string]string)
+		func(inp map[string]interface{}) map[string][]string {
+			ret := make(map[string][]string)
 			for k, v := range inp {
-				ret[k] = v.(string)
+				ret[k] = convInterfaceSlicetoStringSlice(v.([]interface{}))
 			}
 			return ret
 		}(data["compileCommands"].(map[string]interface{}))
-	manifestInstance.execFilePath = data["execFilePath"].(string)
-	manifestInstance.checkCommand = data["checkCommand"].(string)
+	manifestInstance.userProgramPath = data["userProgramPath"].(string)
+	manifestInstance.checkerPath = data["checkerPath"].(string)
 
 	// Check if compile command keys matches language support
 	compileCommandKeys := make([]string, len(manifestInstance.compileCommands))
@@ -113,7 +113,8 @@ func readManifestFromFile(manifestPath string) (*ProblemManifest, error) {
 	return &manifestInstance, nil
 }
 
-func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*SubmissionResult, error) {
+// GradeSubmission is the method that is called when the web server wants to request a problem to be judged
+func GradeSubmission(submissionID string, problemID string, targLang string, ijq *isolateJobQueue, cjq chan checkerJob) (*SubmissionResult, error) {
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
@@ -134,9 +135,13 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 
 	// Compile program and return CE if fail
 	// TODO: Handle other languages that don't need compiling
-	err = exec.Command(manifestInstance.compileCommands[targLang]).Run()
-	if err != nil {
-		return &SubmissionResult{compileSuccessful: false}, nil
+	// TODO: Compile fails without absolute paths
+	if len(manifestInstance.compileCommands) != 0 {
+		err = exec.Command(manifestInstance.compileCommands[targLang][0], manifestInstance.compileCommands[targLang][1:]...).Run()
+		if err != nil {
+			log.Println("Compile error. Make sure manifest.json is using absolute paths only\n", err)
+			return &SubmissionResult{CompileSuccessful: false}, nil
+		}
 	}
 
 	// For each test case, run in isolate and send to checker
@@ -152,18 +157,75 @@ func GradeSubmission(problemID string, targLang string, jq *jobQueue) (*Submissi
 				close(ch)
 				wg.Done()
 			}()
-			jq.q <- isolateJob{
-				execFilePath:  manifestInstance.execFilePath,
-				timeLimit:     manifestInstance.timeLimit,
-				memoryLimit:   manifestInstance.memoryLimit,
-				testInput:     path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
-				resultChannel: ch,
+			job := isolateJob{
+				submissionID,
+				manifestInstance.id,
+				manifestInstance.userProgramPath,
+				manifestInstance.timeLimit,
+				manifestInstance.memoryLimit,
+				path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
+				ch,
 			}
+			log.Println("Pushing job into job queue:")
+			log.Println(job)
+			ijq.q <- job
 			testResults[i] = <-ch
 		}(i)
 	}
 	wg.Wait()
 
-	// TODO: Get outputs from checker and determine verdict
-	return nil, nil
+	// Compile final submission results
+	wg.Add(len(testResults))
+	result := SubmissionResult{
+		CompileSuccessful: true,
+		TimeElapsed:       make([]float64, 0),
+		MemoryUsage:       make([]int, 0),
+	}
+	for i := 0; i < len(testResults); i++ {
+		if testResults[i].verdict == isolate.IsolateRunXX || testResults[i].verdict == isolate.IsolateRunOther {
+			result.Verdicts = append(result.Verdicts, IEVerdict)
+			result.TimeElapsed = append(result.TimeElapsed, 0)
+			result.MemoryUsage = append(result.MemoryUsage, 0)
+			if testResults[i].err != nil {
+				log.Println(testResults[i].err)
+			}
+			continue
+		}
+		result.TimeElapsed = append(result.TimeElapsed, testResults[i].metrics.TimeElapsed)
+		result.MemoryUsage = append(result.MemoryUsage, testResults[i].metrics.MemoryUsage)
+		if testResults[i].verdict != isolate.IsolateRunOK {
+			if testResults[i].verdict == isolate.IsolateRunMLE || testResults[i].verdict == isolate.IsolateRunRE {
+				result.Verdicts = append(result.Verdicts, REVerdict)
+			} else if testResults[i].verdict == isolate.IsolateRunTLE {
+				result.Verdicts = append(result.Verdicts, TLEVerdict)
+			}
+			continue
+		} else {
+			// Get outputs from checker to determine verdict
+			go func(i int) {
+				ch := make(chan checkerResult)
+				defer func() {
+					close(ch)
+					wg.Done()
+				}()
+				job := checkerJob{
+					checkerPath:   manifestInstance.checkerPath,
+					inputPath:     manifestInstance.testInputs[i],
+					outputPath:    path.Join(taskBasePath, problemID, submissionID+"_output"),
+					answerPath:    manifestInstance.testOutputs[i],
+					resultChannel: ch,
+				}
+				cjq <- job
+				checkedResults := <-ch
+				if checkedResults.verdict == IEVerdict {
+					log.Println(checkedResults.err)
+					result.Verdicts = append(result.Verdicts, IEVerdict)
+				} else {
+					result.Verdicts = append(result.Verdicts, checkedResults.verdict)
+				}
+			}(i)
+		}
+	}
+
+	return &result, nil
 }
