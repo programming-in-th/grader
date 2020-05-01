@@ -67,40 +67,48 @@ func runIsolate(
 	return nil
 }
 
+// TODO: "Done" channel to close it?
+func worker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int) {
+	defer close(q)
+	for {
+		select { // TODO: done channel
+		case job := <-q:
+			// Find minimum excludant in box ID pool
+			boxIDPool.mux.Lock()
+			mex := 0
+			for {
+				used, _ := boxIDPool.boxIDs[mex]
+				if !used {
+					boxIDPool.boxIDs[mex] = true
+					break
+				}
+				mex++
+			}
+			boxIDPool.mux.Unlock()
+			log.Printf("Running job on worker: %d", id)
+			log.Println(job)
+			log.Println("Box id for job:", mex)
+			// time.Sleep(time.Duration(rand.Intn(10)) * time.Microsecond)
+			err := runIsolate(job, mex)
+			if err != nil {
+				log.Fatalf("Error during judging %s", err)
+			}
+			boxIDPool.mux.Lock()
+			boxIDPool.boxIDs[mex] = false
+			boxIDPool.mux.Unlock()
+		}
+	}
+}
+
 func NewJobQueue(maxWorkers int) jobQueue {
 	q := make(chan isolateJob, maxWorkers)
 	boxIDPool := safeBoxIDPool{boxIDs: make(map[int]bool)}
-	go func() {
-		defer close(q)
-		for {
-			select { // TODO: done channel
-			case job := <-q:
-				// Find minimum excludant in box ID pool
-				boxIDPool.mux.Lock()
-				mex := 0
-				for {
-					used, _ := boxIDPool.boxIDs[mex]
-					if !used {
-						break
-					}
-					mex++
-				}
-				boxIDPool.mux.Unlock()
-				log.Println("Running job:")
-				log.Println(job)
-				log.Println("Box id for job:", mex)
-				err := runIsolate(job, mex)
-				if err != nil {
-					log.Fatalf("Error during judging")
-				}
-				boxIDPool.mux.Lock()
-				boxIDPool.boxIDs[mex] = false
-				boxIDPool.mux.Unlock()
-			}
-		}
-	}()
+	for i := 0; i < maxWorkers; i++ {
+		go worker(q, &boxIDPool, i)
+	}
 	return jobQueue{q: q, boxIDPool: &boxIDPool}
 }
 
-// TODO: We won't actually need test output
+// TODO: Buffered channel doesn't parallelize. Need actual workers to parallelize?
+// DONE: We won't actually need test output
 // TODO: public/private? also for factory function?
