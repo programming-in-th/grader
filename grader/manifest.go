@@ -229,3 +229,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, ijq
 
 	return &result, nil
 }
+
+// TODO: Change compile to use user_src directory and NAME FILES BY SUBMISSION ID
+// TODO: Change userProgramPath to use user_program directory and NAME FILES BY SUBMISSION ID
+// TODO: Test checker
