@@ -1,0 +1,14 @@
+{
+	"id": "asdf",
+	"timeLimit": 1.5,
+	"memoryLimit": 262144,
+	"langSupport": ["cpp", "python"],
+	"testInputs":["input", "input", "input", "input"],
+	"testOutputs":["output", "output", "output", "output"],
+	"compileCommands":{
+		"cpp": ["/usr/bin/c++","/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/test_sg.cpp", "-o", "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/test_sg"],
+		"python":[]
+	},
+	"userProgramPath": "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/test_sg",
+	"checkerPath": ""
+}
