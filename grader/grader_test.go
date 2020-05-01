@@ -15,6 +15,7 @@ func TestReadManifest(t *testing.T) {
 	t.Log(manifestInstance)
 }
 
+// Tests whole grading pipeline
 func TestGradeSubmission(t *testing.T) {
 	jobQueue := NewIsolateJobQueue(5)
 	checkerJobQueue := NewCheckerJobQueue(5)
@@ -24,3 +25,9 @@ func TestGradeSubmission(t *testing.T) {
 	}
 	t.Log(submissionResult)
 }
+
+func TestChecker(t *testing.T) {
+	// TODO: test just checker functionality
+}
+
+// TODO: Try to go for a more modular testing framework
