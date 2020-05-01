@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/isolate"
 )
 
 const taskBasePath = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/" // IMPORTANT: CHANGE LATER
@@ -22,9 +23,7 @@ type RunVerdict string
 
 const (
 	// CorrectVerdict means the program passed the test
-	CorrectVerdict RunVerdict = "P"
-	// PartialVerdict means the program got the answer partially correct
-	PartialVerdict RunVerdict = "~"
+	ACVerdict RunVerdict = "P"
 	// WAVerdict means the program got the wrong answer on the test
 	WAVerdict RunVerdict = "-"
 	// TLEVerdict means the program timed out
@@ -115,7 +114,7 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
-func GradeSubmission(problemID string, targLang string, ijq *isolateJobQueue) (*SubmissionResult, error) {
+func GradeSubmission(submissionID string, problemID string, targLang string, ijq *isolateJobQueue, cjq chan checkerJob) (*SubmissionResult, error) {
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
@@ -159,11 +158,13 @@ func GradeSubmission(problemID string, targLang string, ijq *isolateJobQueue) (*
 				wg.Done()
 			}()
 			job := isolateJob{
-				userProgramPath: manifestInstance.userProgramPath,
-				timeLimit:       manifestInstance.timeLimit,
-				memoryLimit:     manifestInstance.memoryLimit,
-				inputPath:       path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
-				resultChannel:   ch,
+				submissionID,
+				manifestInstance.id,
+				manifestInstance.userProgramPath,
+				manifestInstance.timeLimit,
+				manifestInstance.memoryLimit,
+				path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
+				ch,
 			}
 			log.Println("Pushing job into job queue:")
 			log.Println(job)
@@ -173,15 +174,57 @@ func GradeSubmission(problemID string, targLang string, ijq *isolateJobQueue) (*
 	}
 	wg.Wait()
 
-	// TODO: Get outputs from checker and determine verdict
+	// Compile final submission results
+	wg.Add(len(testResults))
 	result := SubmissionResult{
 		CompileSuccessful: true,
 		TimeElapsed:       make([]float64, 0),
 		MemoryUsage:       make([]int, 0),
 	}
 	for i := 0; i < len(testResults); i++ {
+		if testResults[i].verdict == isolate.IsolateRunXX || testResults[i].verdict == isolate.IsolateRunOther {
+			result.Verdicts = append(result.Verdicts, IEVerdict)
+			result.TimeElapsed = append(result.TimeElapsed, 0)
+			result.MemoryUsage = append(result.MemoryUsage, 0)
+			if testResults[i].err != nil {
+				log.Println(testResults[i].err)
+			}
+			continue
+		}
 		result.TimeElapsed = append(result.TimeElapsed, testResults[i].metrics.TimeElapsed)
 		result.MemoryUsage = append(result.MemoryUsage, testResults[i].metrics.MemoryUsage)
+		if testResults[i].verdict != isolate.IsolateRunOK {
+			if testResults[i].verdict == isolate.IsolateRunMLE || testResults[i].verdict == isolate.IsolateRunRE {
+				result.Verdicts = append(result.Verdicts, REVerdict)
+			} else if testResults[i].verdict == isolate.IsolateRunTLE {
+				result.Verdicts = append(result.Verdicts, TLEVerdict)
+			}
+			continue
+		} else {
+			// Get outputs from checker to determine verdict
+			go func(i int) {
+				ch := make(chan checkerResult)
+				defer func() {
+					close(ch)
+					wg.Done()
+				}()
+				job := checkerJob{
+					checkerPath:   manifestInstance.checkerPath,
+					inputPath:     manifestInstance.testInputs[i],
+					outputPath:    path.Join(taskBasePath, problemID, submissionID+"_output"),
+					answerPath:    manifestInstance.testOutputs[i],
+					resultChannel: ch,
+				}
+				cjq <- job
+				checkedResults := <-ch
+				if checkedResults.verdict == IEVerdict {
+					log.Println(checkedResults.err)
+					result.Verdicts = append(result.Verdicts, IEVerdict)
+				} else {
+					result.Verdicts = append(result.Verdicts, checkedResults.verdict)
+				}
+			}(i)
+		}
 	}
 
 	return &result, nil

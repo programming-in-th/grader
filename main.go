@@ -1,10 +1,6 @@
 package main
 
-import "github.com/programming-in-th/grader/grader"
-
 func main() {
-	jq := grader.NewIsolateJobQueue(5)
-	grader.GradeSubmission("parade", "cpp", &jq)
 }
 
 // TODO: handle box ids
