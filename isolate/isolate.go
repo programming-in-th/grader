@@ -239,7 +239,7 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	// Check status and return
 	if exitCode == 0 {
 		// IMPORTANT: copy output out of isolate directory
-		err = exec.Command("cp", instance.isolateDirectory+instance.isolateOutputName, instance.resultOutputTargetPath).Run()
+		err = exec.Command("cp", path.Join(instance.isolateDirectory, instance.isolateOutputName), instance.resultOutputTargetPath).Run()
 		if err != nil {
 			return IsolateRunOther, nil
 		}

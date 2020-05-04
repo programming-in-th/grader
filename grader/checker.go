@@ -19,7 +19,7 @@ type checkerJob struct {
 	checkerPath   string
 	inputPath     string
 	outputPath    string
-	answerPath    string
+	solutionPath  string
 	resultChannel chan checkerResult
 }
 
@@ -27,7 +27,7 @@ func checkerWorker(q chan checkerJob, id int) {
 	for {
 		select {
 		case job := <-q:
-			output, err := exec.Command(job.checkerPath, job.inputPath, job.outputPath, job.answerPath).Output()
+			output, err := exec.Command(job.checkerPath, job.inputPath, job.outputPath, job.solutionPath).Output()
 			if err != nil {
 				log.Println("Error during checking")
 				job.resultChannel <- checkerResult{score: 0, err: err}

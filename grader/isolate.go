@@ -2,7 +2,6 @@ package grader
 
 import (
 	"log"
-	"path"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -21,13 +20,12 @@ type isolateTestResult struct {
 }
 
 type isolateJob struct {
-	submissionID    string
-	problemID       string
-	userProgramPath string
-	timeLimit       float64
-	memoryLimit     int
-	inputPath       string
-	resultChannel   chan isolateTestResult
+	userBinPath   string
+	timeLimit     float64
+	memoryLimit   int
+	inputPath     string
+	outputPath    string
+	resultChannel chan isolateTestResult
 }
 
 type isolateJobQueue struct {
@@ -45,7 +43,7 @@ func runIsolate(
 	instance := isolate.NewInstance(
 		"/usr/bin/isolate",
 		boxID,
-		job.userProgramPath,
+		job.userBinPath,
 		1,
 		"tmp", // CHANGE
 		job.timeLimit,
@@ -53,7 +51,7 @@ func runIsolate(
 		job.memoryLimit,
 		"input",
 		"output",
-		path.Join(taskBasePath, job.problemID, job.submissionID+"_output"),
+		job.outputPath,
 		job.inputPath,
 	)
 

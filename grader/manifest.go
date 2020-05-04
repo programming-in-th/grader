@@ -7,7 +7,10 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -46,17 +49,22 @@ type SubmissionResult struct {
 // problemManifest is a type binding for the manifest.json stored in each problem's directory.
 // This is mainly needed to validate the data in manifest.json
 type problemManifest struct {
-	id          string
-	timeLimit   float64
-	memoryLimit int
-	langSupport []string
-	testInputs  []string // names of input files (inside of inputs/ DO NOT specify path)
-	testOutputs []string // names of output files (inside of outputs/ DO NOT specify path)
+	id            string
+	timeLimit     float64
+	memoryLimit   int
+	langSupport   []string
+	testInputs    []string // names of input files (inside of inputs/ DO NOT specify path)
+	testSolutions []string // names of solution files (inside of solutions/ DO NOT specify path)
 	// TODO: Add test groups
 
 	compileCommands map[string][]string // Compile commands for each language
-	userProgramPath string
-	checkerPath     string
+
+	taskBasePath      string
+	userBinBasePath   string
+	inputsBasePath    string
+	outputsBasePath   string
+	solutionsBasePath string
+	checkerPath       string
 }
 
 func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
@@ -79,11 +87,13 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 
 	var manifestInstance problemManifest
 	manifestInstance.id = data["id"].(string)
+	manifestInstance.taskBasePath = path.Join(taskBasePath, manifestInstance.id)
 	manifestInstance.timeLimit = data["timeLimit"].(float64)
 	manifestInstance.memoryLimit = int(data["memoryLimit"].(float64))
 	manifestInstance.langSupport = convInterfaceSlicetoStringSlice(data["langSupport"].([]interface{}))
+	// TODO: simple indexing
 	manifestInstance.testInputs = convInterfaceSlicetoStringSlice(data["testInputs"].([]interface{}))
-	manifestInstance.testOutputs = convInterfaceSlicetoStringSlice(data["testOutputs"].([]interface{}))
+	manifestInstance.testSolutions = convInterfaceSlicetoStringSlice(data["testSolutions"].([]interface{}))
 	manifestInstance.compileCommands =
 		func(inp map[string]interface{}) map[string][]string {
 			ret := make(map[string][]string)
@@ -92,7 +102,11 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 			}
 			return ret
 		}(data["compileCommands"].(map[string]interface{}))
-	manifestInstance.userProgramPath = data["userProgramPath"].(string)
+
+	manifestInstance.userBinBasePath = path.Join(manifestInstance.taskBasePath, "user_bin")
+	manifestInstance.inputsBasePath = path.Join(manifestInstance.taskBasePath, "inputs")
+	manifestInstance.outputsBasePath = path.Join(manifestInstance.taskBasePath, "outputs")
+	manifestInstance.solutionsBasePath = path.Join(manifestInstance.taskBasePath, "solutions")
 	manifestInstance.checkerPath = data["checkerPath"].(string)
 
 	// Check if compile command keys matches language support
@@ -113,8 +127,50 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	return &manifestInstance, nil
 }
 
+// Compiles user source into one file according to arguments in manifest.json
+func compileSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, manifestInstance *problemManifest) (bool, string) {
+	// This should make a copy
+	compileCommands := manifestInstance.compileCommands[targLang]
+	// Regexp gets contents of first [i] match including brackets
+	reSrc := regexp.MustCompile(`\[(.*?)\]`)
+	for i, arg := range compileCommands {
+		// TODO: substitue this check with regex
+		if len(arg) < 9 {
+			continue
+		}
+		if arg[:9] == "$USER_SRC" {
+			// Find $USER_SRC[0]
+			val := reSrc.FindString(arg)
+			val = strings.ReplaceAll(val, "[", "")
+			val = strings.ReplaceAll(val, "]", "")
+			if val == "" {
+				log.Println("Compile error. Make sure user source files are of the form $USER_SRC[i], where i is the index of the desired source file specified in sourceFilePaths[]")
+				return false, ""
+			}
+			index, err := strconv.ParseInt(val, 0, 0)
+			if err != nil {
+				log.Println("Compile error. Make sure i in $USER_SRC[i] is a valid integer. Actual value:", val)
+				return false, ""
+			}
+			if int(index) >= len(sourceFilePaths) {
+				log.Println("Compile error. Make sure i in $USER_SRC[i] is not out of bounds")
+			}
+			compileCommands[i] = sourceFilePaths[index]
+		} else if arg[:9] == "$USER_BIN" {
+			compileCommands[i] = path.Join(manifestInstance.userBinBasePath, submissionID)
+			// TODO: check if chmod is needed
+		}
+	}
+	err := exec.Command(compileCommands[0], compileCommands[1:]...).Run()
+	if err != nil {
+		log.Println("Compile error. Make sure source files are valid paths and manifest.json is using absolute paths only\n", err)
+		return false, ""
+	}
+	return true, path.Join(manifestInstance.userBinBasePath, submissionID)
+}
+
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
-func GradeSubmission(submissionID string, problemID string, targLang string, ijq *isolateJobQueue, cjq chan checkerJob) (*SubmissionResult, error) {
+func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *isolateJobQueue, cjq chan checkerJob) (*SubmissionResult, error) {
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
@@ -136,12 +192,16 @@ func GradeSubmission(submissionID string, problemID string, targLang string, ijq
 	// Compile program and return CE if fail
 	// TODO: Handle other languages that don't need compiling
 	// TODO: Compile fails without absolute paths
+	var userBinPath string
 	if len(manifestInstance.compileCommands) != 0 {
-		err = exec.Command(manifestInstance.compileCommands[targLang][0], manifestInstance.compileCommands[targLang][1:]...).Run()
-		if err != nil {
-			log.Println("Compile error. Make sure manifest.json is using absolute paths only\n", err)
+		var compileSuccessful bool
+		compileSuccessful, userBinPath = compileSubmission(submissionID, problemID, targLang, sourceFilePaths, manifestInstance)
+		if !compileSuccessful {
 			return &SubmissionResult{CompileSuccessful: false}, nil
 		}
+	} else {
+		// TODO: support more than one file
+		// TODO: for now, just move the one file into the user_bin directory
 	}
 
 	// For each test case, run in isolate and send to checker
@@ -158,12 +218,11 @@ func GradeSubmission(submissionID string, problemID string, targLang string, ijq
 				wg.Done()
 			}()
 			job := isolateJob{
-				submissionID,
-				manifestInstance.id,
-				manifestInstance.userProgramPath,
+				userBinPath,
 				manifestInstance.timeLimit,
 				manifestInstance.memoryLimit,
-				path.Join(taskBasePath, problemID, "inputs", manifestInstance.testInputs[i]),
+				path.Join(manifestInstance.inputsBasePath, manifestInstance.testInputs[i]),
+				path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strings.TrimSpace(strconv.Itoa(i))),
 				ch,
 			}
 			log.Println("Pushing job into job queue:")
@@ -172,7 +231,6 @@ func GradeSubmission(submissionID string, problemID string, targLang string, ijq
 			testResults[i] = <-ch
 		}(i)
 	}
-	wg.Wait()
 
 	// Compile final submission results
 	wg.Add(len(testResults))
@@ -209,11 +267,11 @@ func GradeSubmission(submissionID string, problemID string, targLang string, ijq
 					wg.Done()
 				}()
 				job := checkerJob{
-					checkerPath:   manifestInstance.checkerPath,
-					inputPath:     manifestInstance.testInputs[i],
-					outputPath:    path.Join(taskBasePath, problemID, submissionID+"_output"),
-					answerPath:    manifestInstance.testOutputs[i],
-					resultChannel: ch,
+					manifestInstance.checkerPath,
+					manifestInstance.testInputs[i],
+					path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)),
+					manifestInstance.testSolutions[i],
+					ch,
 				}
 				cjq <- job
 				checkedResults := <-ch
@@ -227,9 +285,8 @@ func GradeSubmission(submissionID string, problemID string, targLang string, ijq
 		}
 	}
 
+	// Waits for both isolate and checker job queues
+	wg.Wait()
+
 	return &result, nil
 }
-
-// TODO: Change compile to use user_src directory and NAME FILES BY SUBMISSION ID
-// TODO: Change userProgramPath to use user_program directory and NAME FILES BY SUBMISSION ID
-// TODO: Test checker
