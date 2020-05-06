@@ -2,6 +2,7 @@ package grader
 
 import (
 	"log"
+	"strconv"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -45,12 +46,10 @@ func runIsolate(
 		boxID,
 		job.userBinPath,
 		1,
-		"tmp", // CHANGE
+		"/tmp/tmp_isolate_grader_"+strconv.Itoa(boxID),
 		job.timeLimit,
-		0, // CHANGE
+		0, // TODO: CHANGE
 		job.memoryLimit,
-		"input",
-		"output",
 		job.outputPath,
 		job.inputPath,
 	)

@@ -69,8 +69,6 @@ func NewInstance(
 	timeLimit float64,
 	extraTime float64,
 	memoryLimit int,
-	isolateInputFile string,
-	isolateOutputFile string,
 	resultOutputFile string,
 	inputFile string) *Instance {
 
@@ -83,8 +81,8 @@ func NewInstance(
 		timeLimit:              timeLimit,
 		extraTime:              extraTime,
 		memoryLimit:            memoryLimit,
-		isolateInputName:       strings.TrimSpace(isolateInputFile),
-		isolateOutputName:      strings.TrimSpace(isolateOutputFile),
+		isolateInputName:       "input",
+		isolateOutputName:      "output",
 		resultOutputTargetPath: strings.TrimSpace(resultOutputFile),
 		inputPath:              strings.TrimSpace(inputFile),
 		boxBinaryName:          "program",
@@ -126,6 +124,7 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 
 // Cleanup clears up the box directory for other instances to use
 func (instance *Instance) Cleanup() error { // returns true if finished OK, otherwise returns false
+	exec.Command("rm", instance.logFile).Run() // No need to catch errors on this because duplicate tmp files does nothing
 	err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
 	return err
 }
