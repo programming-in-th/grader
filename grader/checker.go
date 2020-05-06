@@ -27,9 +27,11 @@ func checkerWorker(q chan checkerJob, id int) {
 	for {
 		select {
 		case job := <-q:
+			// Arguments: [path to checker binary, path to input file, path to user's produced output file, path to solution output (for checkers that diff)]
 			output, err := exec.Command(job.checkerPath, job.inputPath, job.outputPath, job.solutionPath).Output()
 			if err != nil {
-				log.Println("Error during checking")
+				log.Println("Error during checking. Did you chmod +x the checker executable? Checker job:", job)
+				log.Println(err)
 				job.resultChannel <- checkerResult{score: 0, err: err}
 				continue
 			}

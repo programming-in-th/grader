@@ -9,5 +9,5 @@
 		"cpp": ["/usr/bin/c++","$USER_SRC[0]", "-o", "$USER_BIN"],
 		"python":[]
 	},
-	"checkerPath": ""
+	"checkerPath": "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/checker.py"
 }
