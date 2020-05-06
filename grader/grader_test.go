@@ -28,10 +28,6 @@ func TestGradeSubmission(t *testing.T) {
 	t.Log(submissionResult)
 }
 
-func TestChecker(t *testing.T) {
-	// TODO: test just checker functionality
-}
-
 func TestCompile(t *testing.T) {
 	src := make([]string, 1)
 	src[0] = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/ac.cpp"

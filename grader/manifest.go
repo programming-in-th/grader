@@ -17,7 +17,7 @@ import (
 	"github.com/programming-in-th/grader/isolate"
 )
 
-const taskBasePath = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/" // IMPORTANT: CHANGE LATER
+const taskBasePath = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/" // TODO: IMPORTANT! CHANGE LATER
 
 // RunVerdict denotes the possible verdicts after running, including Correct, WA, TLE, RE and other errors
 // This does not include CE
@@ -58,13 +58,13 @@ type problemManifest struct {
 	// TODO: Add test groups
 
 	compileCommands map[string][]string // Compile commands for each language
+	checkerPath     string
 
 	taskBasePath      string
 	userBinBasePath   string
 	inputsBasePath    string
 	outputsBasePath   string
 	solutionsBasePath string
-	checkerPath       string
 }
 
 func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
@@ -232,6 +232,9 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		}(i)
 	}
 
+	// Need to wait first for all isolate runs to complete first, or else checker can attempt to read non-existent output files
+	wg.Wait()
+
 	// Compile final submission results
 	wg.Add(len(testResults))
 	result := SubmissionResult{
@@ -268,7 +271,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 				}()
 				job := checkerJob{
 					manifestInstance.checkerPath,
-					manifestInstance.testInputs[i],
+					path.Join(manifestInstance.inputsBasePath, manifestInstance.testInputs[i]),
 					path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)),
 					manifestInstance.testSolutions[i],
 					ch,
@@ -285,7 +288,6 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		}
 	}
 
-	// Waits for both isolate and checker job queues
 	wg.Wait()
 
 	return &result, nil
