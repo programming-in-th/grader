@@ -17,8 +17,10 @@ func TestReadManifest(t *testing.T) {
 
 // Tests whole grading pipeline
 func TestGradeSubmission(t *testing.T) {
-	jobQueue := NewIsolateJobQueue(1)
-	checkerJobQueue := NewCheckerJobQueue(5)
+	jobQueueDone := make(chan bool)
+	jobQueue := NewIsolateJobQueue(2, jobQueueDone)
+	checkerJobQueueDone := make(chan bool)
+	checkerJobQueue := NewCheckerJobQueue(5, checkerJobQueueDone)
 	src := make([]string, 1)
 	src[0] = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/ac.cpp"
 	submissionResult, err := GradeSubmission("submissionID", "asdf", "cpp", src, &jobQueue, checkerJobQueue)
@@ -26,6 +28,9 @@ func TestGradeSubmission(t *testing.T) {
 		t.Error("Error grading submission")
 	}
 	t.Log(submissionResult)
+	jobQueueDone <- true
+	checkerJobQueueDone <- true
+
 }
 
 func TestCompile(t *testing.T) {

@@ -91,7 +91,6 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	manifestInstance.timeLimit = data["timeLimit"].(float64)
 	manifestInstance.memoryLimit = int(data["memoryLimit"].(float64))
 	manifestInstance.langSupport = convInterfaceSlicetoStringSlice(data["langSupport"].([]interface{}))
-	// TODO: simple indexing
 	manifestInstance.testInputs = convInterfaceSlicetoStringSlice(data["testInputs"].([]interface{}))
 	manifestInstance.testSolutions = convInterfaceSlicetoStringSlice(data["testSolutions"].([]interface{}))
 	manifestInstance.compileCommands =
@@ -171,6 +170,9 @@ func compileSubmission(submissionID string, problemID string, targLang string, s
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
 func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *isolateJobQueue, cjq chan checkerJob) (*SubmissionResult, error) {
+	if len(sourceFilePaths) == 0 {
+		log.Fatal("No source files provided")
+	}
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
@@ -200,6 +202,14 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 			return &SubmissionResult{CompileSuccessful: false}, nil
 		}
 	} else {
+		if len(sourceFilePaths) > 1 {
+			log.Fatal("Grader does not support more than one source file for interpreted languages")
+		}
+		err := exec.Command("mv", sourceFilePaths[0], path.Join(manifestInstance.userBinBasePath)).Run()
+		if err != nil {
+			log.Print("Failed to move source file into user_bin")
+			return &SubmissionResult{CompileSuccessful: false}, nil
+		}
 		// TODO: support more than one file
 		// TODO: for now, just move the one file into the user_bin directory
 	}
@@ -241,6 +251,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		CompileSuccessful: true,
 		TimeElapsed:       make([]float64, 0),
 		MemoryUsage:       make([]int, 0),
+		Scores:            make([]float64, 0),
 	}
 	for i := 0; i < len(testResults); i++ {
 		if testResults[i].verdict == isolate.IsolateRunXX || testResults[i].verdict == isolate.IsolateRunOther {
@@ -273,7 +284,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 					manifestInstance.checkerPath,
 					path.Join(manifestInstance.inputsBasePath, manifestInstance.testInputs[i]),
 					path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)),
-					manifestInstance.testSolutions[i],
+					path.Join(manifestInstance.solutionsBasePath, manifestInstance.testSolutions[i]),
 					ch,
 				}
 				cjq <- job
@@ -283,6 +294,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 					result.Verdicts = append(result.Verdicts, IEVerdict)
 				} else {
 					result.Verdicts = append(result.Verdicts, checkedResults.verdict)
+					result.Scores = append(result.Scores, checkedResults.score)
 				}
 			}(i)
 		}

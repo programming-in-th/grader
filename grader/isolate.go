@@ -68,9 +68,7 @@ func runIsolate(
 	return
 }
 
-// TODO: "Done" channel to close it?
-func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int) {
-	defer close(q)
+func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done chan bool) {
 	for {
 		select {
 		case job := <-q:
@@ -93,17 +91,28 @@ func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int) {
 			boxIDPool.mux.Lock()
 			boxIDPool.boxIDs[mex] = false
 			boxIDPool.mux.Unlock()
+		case <-done:
+			break
 		}
 	}
 }
 
-func NewIsolateJobQueue(maxWorkers int) isolateJobQueue {
+func NewIsolateJobQueue(maxWorkers int, done chan bool) isolateJobQueue {
 	q := make(chan isolateJob)
+	var wg sync.WaitGroup
+
+	go func() {
+		wg.Wait()
+		close(q)
+	}()
+
+	wg.Add(maxWorkers)
 	boxIDPool := safeBoxIDPool{boxIDs: make(map[int]bool)}
 	for i := 0; i < maxWorkers; i++ {
-		go isolateWorker(q, &boxIDPool, i)
+		go func(i int) {
+			isolateWorker(q, &boxIDPool, i, done)
+			wg.Done()
+		}(i)
 	}
 	return isolateJobQueue{q, &boxIDPool}
 }
-
-// TODO: public/private? also for factory function?

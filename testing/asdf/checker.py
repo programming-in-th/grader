@@ -7,7 +7,7 @@ inputFile = sys.argv[1]
 outputFile = sys.argv[2]
 solFile = sys.argv[3]
 
-if filecmp.cmp(inputFile, outputFile) == True:
+if filecmp.cmp(outputFile, solFile) == True:
     print("Correct")
     print("100")
 else:

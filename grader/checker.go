@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -23,7 +24,7 @@ type checkerJob struct {
 	resultChannel chan checkerResult
 }
 
-func checkerWorker(q chan checkerJob, id int) {
+func checkerWorker(q chan checkerJob, id int, done chan bool) {
 	for {
 		select {
 		case job := <-q:
@@ -50,14 +51,27 @@ func checkerWorker(q chan checkerJob, id int) {
 			} else {
 				job.resultChannel <- checkerResult{WAVerdict, score, nil}
 			}
+		case <-done:
+			break
 		}
 	}
 }
 
-func NewCheckerJobQueue(maxWorkers int) chan checkerJob {
+func NewCheckerJobQueue(maxWorkers int, done chan bool) chan checkerJob {
 	ch := make(chan checkerJob)
+	var wg sync.WaitGroup
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	wg.Add(maxWorkers)
 	for i := 0; i < maxWorkers; i++ {
-		go checkerWorker(ch, i)
+		go func(i int) {
+			checkerWorker(ch, i, done)
+			wg.Done()
+		}(i)
 	}
 	return ch
 }
