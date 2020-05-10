@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -124,7 +125,7 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 
 // Cleanup clears up the box directory for other instances to use
 func (instance *Instance) Cleanup() error { // returns true if finished OK, otherwise returns false
-	exec.Command("rm", instance.logFile).Run() // No need to catch errors on this because duplicate tmp files does nothing
+	os.Remove(instance.logFile) // No need to catch errors on this because duplicate tmp files does nothing
 	err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
 	return err
 }

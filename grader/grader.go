@@ -2,7 +2,7 @@ package grader
 
 import (
 	"log"
-	"os/exec"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -62,7 +62,7 @@ type problemManifest struct {
 	solutionsBasePath string
 }
 
-func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID string, userBinPath string, q *isolateJobQueue) []isolateTestResult {
+func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID string, userBinPath string, q *IsolateJobQueue) []isolateTestResult {
 	// For each test case, run in isolate and send to checker
 	testResults := make([]isolateTestResult, len(manifestInstance.testInputs))
 	var wg sync.WaitGroup
@@ -95,7 +95,7 @@ func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID s
 	return testResults
 }
 
-func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *problemManifest, submissionID string, cjq chan checkerJob) ListedSubmissionResult {
+func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *problemManifest, submissionID string, cjq chan CheckerJob) ListedSubmissionResult {
 	// Compile final submission results
 	var wg sync.WaitGroup
 	wg.Add(len(testResults))
@@ -132,7 +132,7 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 					close(ch)
 					wg.Done()
 				}()
-				job := checkerJob{
+				job := CheckerJob{
 					manifestInstance.checkerPath,
 					path.Join(manifestInstance.inputsBasePath, manifestInstance.testInputs[i]),
 					path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)),
@@ -158,7 +158,7 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
-func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *isolateJobQueue, cjq chan checkerJob) (*ListedSubmissionResult, error) {
+func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *IsolateJobQueue, cjq chan CheckerJob) (*ListedSubmissionResult, error) {
 	if len(sourceFilePaths) == 0 {
 		log.Fatal("No source files provided")
 	}
@@ -194,7 +194,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		if len(sourceFilePaths) > 1 {
 			log.Fatal("Grader does not support more than one source file for interpreted languages")
 		}
-		err := exec.Command("mv", sourceFilePaths[0], path.Join(manifestInstance.userBinBasePath)).Run()
+		err := os.Rename(sourceFilePaths[0], path.Join(manifestInstance.userBinBasePath, submissionID))
 		if err != nil {
 			return &ListedSubmissionResult{CompileSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
 		}

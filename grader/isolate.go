@@ -29,7 +29,7 @@ type isolateJob struct {
 	resultChannel chan isolateTestResult
 }
 
-type isolateJobQueue struct {
+type IsolateJobQueue struct {
 	q         chan isolateJob
 	boxIDPool *safeBoxIDPool
 }
@@ -97,7 +97,7 @@ func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done cha
 	}
 }
 
-func NewIsolateJobQueue(maxWorkers int, done chan bool) isolateJobQueue {
+func NewIsolateJobQueue(maxWorkers int, done chan bool) IsolateJobQueue {
 	q := make(chan isolateJob)
 	var wg sync.WaitGroup
 
@@ -114,5 +114,5 @@ func NewIsolateJobQueue(maxWorkers int, done chan bool) isolateJobQueue {
 			wg.Done()
 		}(i)
 	}
-	return isolateJobQueue{q, &boxIDPool}
+	return IsolateJobQueue{q, &boxIDPool}
 }

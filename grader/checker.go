@@ -16,7 +16,7 @@ type checkerResult struct {
 	err     error
 }
 
-type checkerJob struct {
+type CheckerJob struct {
 	checkerPath   string
 	inputPath     string
 	outputPath    string
@@ -24,7 +24,7 @@ type checkerJob struct {
 	resultChannel chan checkerResult
 }
 
-func checkerWorker(q chan checkerJob, id int, done chan bool) {
+func checkerWorker(q chan CheckerJob, id int, done chan bool) {
 	for {
 		select {
 		case job := <-q:
@@ -57,8 +57,8 @@ func checkerWorker(q chan checkerJob, id int, done chan bool) {
 	}
 }
 
-func NewCheckerJobQueue(maxWorkers int, done chan bool) chan checkerJob {
-	ch := make(chan checkerJob)
+func NewCheckerJobQueue(maxWorkers int, done chan bool) chan CheckerJob {
+	ch := make(chan CheckerJob)
 	var wg sync.WaitGroup
 
 	go func() {
