@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -9,7 +10,10 @@ import (
 	"path"
 	"strconv"
 
+	"cloud.google.com/go/firestore"
+	firebase "firebase.google.com/go"
 	"github.com/programming-in-th/grader/grader"
+	"google.golang.org/api/option"
 )
 
 type gradingRequest struct {
@@ -19,12 +23,12 @@ type gradingRequest struct {
 	Code         []string
 }
 
-func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) *grader.GroupedSubmissionResult {
 	var request gradingRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	log.Println("New request with submission ID", request.SubmissionID)
@@ -36,7 +40,7 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 		err = ioutil.WriteFile(filenames[i], []byte(request.Code[i]), 0644)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+			return nil
 		}
 	}
 
@@ -52,15 +56,39 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		return nil
 	}
 
 	w.WriteHeader(http.StatusOK)
+
+	return result
 }
 
 func handleRequest(ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+	// Init Firebase
+	opt := option.WithCredentialsFile("./serviceAccountKey.json")
+	app, err := firebase.NewApp(context.Background(), nil, opt)
+	if err != nil {
+		log.Fatalf("error initializing app: %v", err)
+	}
+	client, err := app.Firestore(context.Background())
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer client.Close()
+
+	// Init HTTP Handlers
+
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
-		handleSubmit(w, r, ijq, cjq)
+		result := handleSubmit(w, r, ijq, cjq)
+		postResultsToFirestore(client, result)
 	})
 	http.ListenAndServe(":11112", nil)
 }
+
+func postResultsToFirestore(client *firestore.Client, result *grader.GroupedSubmissionResult) {
+	// TODO: post to firestore
+}
+
+// TODO: fix connection refused

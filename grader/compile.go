@@ -12,7 +12,7 @@ import (
 // Compiles user source into one file according to arguments in manifest.json
 func compileSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, manifestInstance *problemManifest) (bool, string) {
 	// This should make a copy
-	compileCommands := manifestInstance.compileCommands[targLang]
+	compileCommands := manifestInstance.CompileCommands[targLang]
 	// Regexp gets contents of first [i] match including brackets
 	reSrc := regexp.MustCompile(`\[(.*?)\]`)
 	for i, arg := range compileCommands {

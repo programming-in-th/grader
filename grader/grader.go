@@ -14,6 +14,8 @@ import (
 
 const taskBasePath = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/" // TODO: IMPORTANT! CHANGE LATER
 
+/* TEST RESULT TYPES */
+
 // RunVerdict denotes the possible verdicts after running, including Correct, WA, TLE, RE and other errors
 // This does not include CE
 // Make sure to not confuse this with isolate.RunVerdict, which although is similar, is completely different
@@ -41,19 +43,51 @@ type ListedSubmissionResult struct {
 	MemoryUsage       []int     // memory usage for each test case in each group
 }
 
+// SingleTestResult denotes the metrics for one single test
+type SingleTestResult struct {
+	Verdict     RunVerdict
+	Score       float64
+	TimeElapsed float64
+	MemoryUsage int
+}
+
+// SingleGroupResults denotes the metrics for one single group (comprised of many tests)
+type SingleGroupResult struct {
+	Score       float64
+	TestResults []SingleTestResult
+}
+
+// GroupedSubmissionResult denotes the test results for all groups
+type GroupedSubmissionResult struct {
+	CompileSuccessful bool
+	GroupResults      []SingleGroupResult
+}
+
+/* MANIFEST TYPES */
+
+type indexRange struct {
+	Start int
+	End   int
+}
+
+type TestGroup struct {
+	FullScore   float64
+	TestIndices indexRange
+}
+
 // problemManifest is a type binding for the manifest.json stored in each problem's directory.
 // This is mainly needed to validate the data in manifest.json
 type problemManifest struct {
-	id            string
-	timeLimit     float64
-	memoryLimit   int
-	langSupport   []string
-	testInputs    []string // names of input files (inside of inputs/ DO NOT specify path)
-	testSolutions []string // names of solution files (inside of solutions/ DO NOT specify path)
-	// TODO: Add test groups
+	ID            string
+	TimeLimit     float64
+	MemoryLimit   int
+	LangSupport   []string
+	TestInputs    []string // names of input files (inside of inputs/ DO NOT specify path)
+	TestSolutions []string // names of solution files (inside of solutions/ DO NOT specify path)
+	Groups        []TestGroup
 
-	compileCommands map[string][]string // Compile commands for each language
-	checkerPath     string
+	CompileCommands map[string][]string // Compile commands for each language
+	CheckerPath     string
 
 	taskBasePath      string
 	userBinBasePath   string
@@ -64,9 +98,9 @@ type problemManifest struct {
 
 func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID string, userBinPath string, q *IsolateJobQueue) []isolateTestResult {
 	// For each test case, run in isolate and send to checker
-	testResults := make([]isolateTestResult, len(manifestInstance.testInputs))
+	testResults := make([]isolateTestResult, len(manifestInstance.TestInputs))
 	var wg sync.WaitGroup
-	wg.Add(len(manifestInstance.testInputs))
+	wg.Add(len(manifestInstance.TestInputs))
 
 	for i := 0; i < len(testResults); i++ {
 		go func(i int) {
@@ -77,9 +111,9 @@ func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID s
 			}()
 			job := isolateJob{
 				userBinPath,
-				manifestInstance.timeLimit,
-				manifestInstance.memoryLimit,
-				path.Join(manifestInstance.inputsBasePath, manifestInstance.testInputs[i]),
+				manifestInstance.TimeLimit,
+				manifestInstance.MemoryLimit,
+				path.Join(manifestInstance.inputsBasePath, manifestInstance.TestInputs[i]),
 				path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strings.TrimSpace(strconv.Itoa(i))),
 				ch,
 			}
@@ -95,34 +129,38 @@ func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID s
 	return testResults
 }
 
-func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *problemManifest, submissionID string, cjq chan CheckerJob) ListedSubmissionResult {
+func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *problemManifest, submissionID string, cjq chan CheckerJob) []SingleTestResult {
 	// Compile final submission results
 	var wg sync.WaitGroup
 	wg.Add(len(testResults))
-	result := ListedSubmissionResult{
-		CompileSuccessful: true,
-		TimeElapsed:       make([]float64, 0),
-		MemoryUsage:       make([]int, 0),
-		Scores:            make([]float64, 0),
-	}
+
+	result := make([]SingleTestResult, 0)
 	for i := 0; i < len(testResults); i++ {
+		var currResult SingleTestResult
+
 		if testResults[i].verdict == isolate.IsolateRunXX || testResults[i].verdict == isolate.IsolateRunOther {
-			result.Verdicts = append(result.Verdicts, IEVerdict)
-			result.TimeElapsed = append(result.TimeElapsed, 0)
-			result.MemoryUsage = append(result.MemoryUsage, 0)
+			currResult.Verdict = IEVerdict
+			currResult.TimeElapsed = 0
+			currResult.MemoryUsage = 0
+			currResult.Score = 0
 			if testResults[i].err != nil {
 				log.Println(testResults[i].err)
 			}
+			result = append(result, currResult)
 			continue
 		}
-		result.TimeElapsed = append(result.TimeElapsed, testResults[i].metrics.TimeElapsed)
-		result.MemoryUsage = append(result.MemoryUsage, testResults[i].metrics.MemoryUsage)
+
+		currResult.TimeElapsed = testResults[i].metrics.TimeElapsed
+		currResult.MemoryUsage = testResults[i].metrics.MemoryUsage
 		if testResults[i].verdict != isolate.IsolateRunOK {
 			if testResults[i].verdict == isolate.IsolateRunMLE || testResults[i].verdict == isolate.IsolateRunRE {
-				result.Verdicts = append(result.Verdicts, REVerdict)
+				currResult.Verdict = REVerdict
+				currResult.Score = 0
 			} else if testResults[i].verdict == isolate.IsolateRunTLE {
-				result.Verdicts = append(result.Verdicts, TLEVerdict)
+				currResult.Verdict = TLEVerdict
+				currResult.Score = 0
 			}
+			result = append(result, currResult)
 			continue
 		} else {
 			// Get outputs from checker to determine verdict
@@ -133,21 +171,23 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 					wg.Done()
 				}()
 				job := CheckerJob{
-					manifestInstance.checkerPath,
-					path.Join(manifestInstance.inputsBasePath, manifestInstance.testInputs[i]),
+					manifestInstance.CheckerPath,
+					path.Join(manifestInstance.inputsBasePath, manifestInstance.TestInputs[i]),
 					path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)),
-					path.Join(manifestInstance.solutionsBasePath, manifestInstance.testSolutions[i]),
+					path.Join(manifestInstance.solutionsBasePath, manifestInstance.TestSolutions[i]),
 					ch,
 				}
 				cjq <- job
 				checkedResults := <-ch
 				if checkedResults.verdict == IEVerdict {
 					log.Println(checkedResults.err)
-					result.Verdicts = append(result.Verdicts, IEVerdict)
+					currResult.Verdict = IEVerdict
+					currResult.Score = 0
 				} else {
-					result.Verdicts = append(result.Verdicts, checkedResults.verdict)
-					result.Scores = append(result.Scores, checkedResults.score)
+					currResult.Verdict = checkedResults.verdict
+					currResult.Score = checkedResults.score
 				}
+				result = append(result, currResult)
 			}(i)
 		}
 	}
@@ -158,7 +198,7 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
-func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *IsolateJobQueue, cjq chan CheckerJob) (*ListedSubmissionResult, error) {
+func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *IsolateJobQueue, cjq chan CheckerJob) (*GroupedSubmissionResult, error) {
 	if len(sourceFilePaths) == 0 {
 		log.Fatal("No source files provided")
 	}
@@ -171,7 +211,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 
 	// Check if target language is supported
 	langSupportContainsTargLang := false
-	for _, lang := range manifestInstance.langSupport {
+	for _, lang := range manifestInstance.LangSupport {
 		if lang == targLang {
 			langSupportContainsTargLang = true
 		}
@@ -184,11 +224,11 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 	// TODO: Handle other languages that don't need compiling
 	// TODO: Compile fails without absolute paths
 	var userBinPath string
-	if len(manifestInstance.compileCommands) != 0 {
+	if len(manifestInstance.CompileCommands) != 0 {
 		var compileSuccessful bool
 		compileSuccessful, userBinPath = compileSubmission(submissionID, problemID, targLang, sourceFilePaths, manifestInstance)
 		if !compileSuccessful {
-			return &ListedSubmissionResult{CompileSuccessful: false}, nil
+			return &GroupedSubmissionResult{CompileSuccessful: false}, nil
 		}
 	} else {
 		if len(sourceFilePaths) > 1 {
@@ -196,14 +236,32 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		}
 		err := os.Rename(sourceFilePaths[0], path.Join(manifestInstance.userBinBasePath, submissionID))
 		if err != nil {
-			return &ListedSubmissionResult{CompileSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
+			return &GroupedSubmissionResult{CompileSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
 		}
-		// TODO: support more than one file
-		// TODO: for now, just move the one file into the user_bin directory
+		// TODO: support more than one file. For now, just move the one file into the user_bin directory
 	}
 
-	testResults := waitForIsolateTestResults(manifestInstance, submissionID, userBinPath, ijq)
-	result := waitForCheckerResults(testResults, manifestInstance, submissionID, cjq)
+	isolateResults := waitForIsolateTestResults(manifestInstance, submissionID, userBinPath, ijq)
+	checkerResults := waitForCheckerResults(isolateResults, manifestInstance, submissionID, cjq)
 
-	return &result, nil
+	// Group single test results
+	// TODO: Test (everything in this new refactored pipeline) and move to separate function
+	finalResults := GroupedSubmissionResult{CompileSuccessful: false}
+
+	for _, testGroup := range manifestInstance.Groups {
+		groupResults := SingleGroupResult{
+			Score:       -1,
+			TestResults: make([]SingleTestResult, testGroup.TestIndices.End-testGroup.TestIndices.Start),
+		}
+		i := 0
+		for j := testGroup.TestIndices.Start; j < testGroup.TestIndices.End; j++ {
+			groupResults.TestResults[i] = checkerResults[j]
+			if groupResults.Score == -1 || checkerResults[j].Score < groupResults.Score {
+				groupResults.Score = checkerResults[j].Score
+			}
+		}
+		i++
+	}
+
+	return &finalResults, nil
 }
