@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -12,10 +13,10 @@ import (
 )
 
 type gradingRequest struct {
-	submissionID string
-	problemID    string
-	targLang     string
-	code         []string
+	SubmissionID string
+	ProblemID    string
+	TargLang     string
+	Code         []string
 }
 
 func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
@@ -26,11 +27,13 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 		return
 	}
 
+	log.Println("New request with submission ID", request.SubmissionID)
+
 	// Copy source code into /tmp directory
-	filenames := make([]string, len(request.code))
-	for i := 0; i < len(request.code); i++ {
-		filenames[i] = path.Join("/tmp", request.submissionID+"_"+strconv.Itoa(i))
-		err = ioutil.WriteFile(filenames[i], []byte(request.code[i]), 0644)
+	filenames := make([]string, len(request.Code))
+	for i := 0; i < len(request.Code); i++ {
+		filenames[i] = path.Join("/tmp", request.SubmissionID+"_"+strconv.Itoa(i)+"."+request.TargLang)
+		err = ioutil.WriteFile(filenames[i], []byte(request.Code[i]), 0644)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -44,14 +47,15 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 		}
 	}()
 
-	result, err := grader.GradeSubmission(request.submissionID, request.problemID, request.targLang, filenames, ijq, cjq)
+	result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, filenames, ijq, cjq)
+	log.Println(result)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	json.NewEncoder(w).Encode(result)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleRequest(ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
