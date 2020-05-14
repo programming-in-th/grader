@@ -220,12 +220,23 @@ func groupIndividualResults(checkerResults []SingleTestResult, groups []TestGrou
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
 func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *IsolateJobQueue, cjq chan CheckerJob) (*GroupedSubmissionResult, error) {
+	taskBasePath := os.Getenv("GRADER_TASK_BASE_PATH")
 	if len(sourceFilePaths) == 0 {
 		log.Fatal("No source files provided")
 	}
 	// Locate manifest file and read it
-	manifestPath := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), problemID, "manifest.json")
+	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error in grading submission")
+	}
+
+	// Create needed directories if they don't exist
+	err = createDirIfNotExist(path.Join(taskBasePath, problemID, "outputs"))
+	if err != nil {
+		return nil, errors.Wrap(err, "Error in grading submission")
+	}
+	err = createDirIfNotExist(path.Join(taskBasePath, problemID, "user_bin"))
 	if err != nil {
 		return nil, errors.Wrap(err, "Error in grading submission")
 	}
@@ -274,4 +285,15 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 	os.Remove(userBinPath)
 
 	return finalResults, nil
+}
+
+func createDirIfNotExist(path string) error {
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		errDir := os.MkdirAll(path, 0755)
+		if errDir != nil {
+			return errDir
+		}
+	}
+	return nil
 }
