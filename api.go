@@ -106,5 +106,3 @@ func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cj
 func postResultsToFirestore(client *firestore.Client, result *grader.GroupedSubmissionResult) {
 	// TODO: post to firestore
 }
-
-// TODO: delete user's files on server

@@ -267,5 +267,11 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 	log.Println("Individual test case results:", checkerResults)
 	finalResults := groupIndividualResults(checkerResults, manifestInstance.Groups)
 
+	// Remove user output file to not clutter up disk
+	for i := 0; i < len(manifestInstance.TestInputs); i++ {
+		os.Remove(path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)))
+	}
+	os.Remove(userBinPath)
+
 	return finalResults, nil
 }
