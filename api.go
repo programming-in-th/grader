@@ -52,7 +52,6 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 	}()
 
 	result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, filenames, ijq, cjq)
-	log.Println(result)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -82,6 +81,7 @@ func handleRequest(ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
 
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		result := handleSubmit(w, r, ijq, cjq)
+		log.Println(result)
 		postResultsToFirestore(client, result)
 	})
 	http.ListenAndServe(":11112", nil)

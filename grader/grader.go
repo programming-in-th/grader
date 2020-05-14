@@ -197,6 +197,29 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 	return result
 }
 
+func groupIndividualResults(checkerResults []SingleTestResult, groups []TestGroup) *GroupedSubmissionResult {
+	finalResults := GroupedSubmissionResult{CompileSuccessful: false}
+
+	for _, testGroup := range groups {
+		groupResult := SingleGroupResult{
+			Score:       -1,
+			TestResults: make([]SingleTestResult, testGroup.TestIndices.End-testGroup.TestIndices.Start),
+		}
+		i := 0
+		for j := testGroup.TestIndices.Start; j < testGroup.TestIndices.End; j++ {
+			groupResult.TestResults[i] = checkerResults[j]
+			if groupResult.Score == -1 || checkerResults[j].Score < groupResult.Score {
+				groupResult.Score = checkerResults[j].Score
+			}
+			i++
+		}
+		// Scale score from checker (out of 100) by full score of group
+		groupResult.Score = 1.0 * groupResult.Score * testGroup.FullScore / 100
+		finalResults.GroupResults = append(finalResults.GroupResults, groupResult)
+	}
+	return &finalResults
+}
+
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
 func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *IsolateJobQueue, cjq chan CheckerJob) (*GroupedSubmissionResult, error) {
 	if len(sourceFilePaths) == 0 {
@@ -243,25 +266,8 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 
 	isolateResults := waitForIsolateTestResults(manifestInstance, submissionID, userBinPath, ijq)
 	checkerResults := waitForCheckerResults(isolateResults, manifestInstance, submissionID, cjq)
+	log.Println("Individual test case results:", checkerResults)
+	finalResults := groupIndividualResults(checkerResults, manifestInstance.Groups)
 
-	// Group single test results
-	// TODO: Test (everything in this new refactored pipeline) and move to separate function
-	finalResults := GroupedSubmissionResult{CompileSuccessful: false}
-
-	for _, testGroup := range manifestInstance.Groups {
-		groupResults := SingleGroupResult{
-			Score:       -1,
-			TestResults: make([]SingleTestResult, testGroup.TestIndices.End-testGroup.TestIndices.Start),
-		}
-		i := 0
-		for j := testGroup.TestIndices.Start; j < testGroup.TestIndices.End; j++ {
-			groupResults.TestResults[i] = checkerResults[j]
-			if groupResults.Score == -1 || checkerResults[j].Score < groupResults.Score {
-				groupResults.Score = checkerResults[j].Score
-			}
-		}
-		i++
-	}
-
-	return &finalResults, nil
+	return finalResults, nil
 }
