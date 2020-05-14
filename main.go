@@ -13,13 +13,15 @@ func main() {
 		log.Fatal("Environment variable GRADER_TASK_BASE_PATH is not set")
 	}
 
+	requestChannel := make(chan gradingRequest)
 	jobQueueDone := make(chan bool)
 	jobQueue := grader.NewIsolateJobQueue(2, jobQueueDone)
 	checkerJobQueueDone := make(chan bool)
 	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone)
 
-	handleRequest(&jobQueue, checkerJobQueue)
+	initAPI(requestChannel, &jobQueue, checkerJobQueue)
 
 	jobQueueDone <- true
 	checkerJobQueueDone <- true
+	close(requestChannel)
 }

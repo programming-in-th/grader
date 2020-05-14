@@ -23,25 +23,14 @@ type gradingRequest struct {
 	Code         []string
 }
 
-func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) *grader.GroupedSubmissionResult {
-	var request gradingRequest
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return nil
-	}
-
-	log.Println("New request with submission ID", request.SubmissionID)
-	log.Println(request)
-
+func grade(request *gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) (*grader.GroupedSubmissionResult, error) {
 	// Copy source code into /tmp directory
 	filenames := make([]string, len(request.Code))
 	for i := 0; i < len(request.Code); i++ {
 		filenames[i] = path.Join("/tmp", request.SubmissionID+"_"+strconv.Itoa(i)+"."+request.TargLang)
-		err = ioutil.WriteFile(filenames[i], []byte(request.Code[i]), 0644)
+		err := ioutil.WriteFile(filenames[i], []byte(request.Code[i]), 0644)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return nil
+			return nil, err
 		}
 	}
 
@@ -55,18 +44,43 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 	result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, filenames, ijq, cjq)
 
 	if err != nil {
-		log.Println(err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return nil
+		return nil, err
 	}
 
-	// TODO: send "submitted" status ok as soon as the use submits
-	w.WriteHeader(http.StatusOK)
-
-	return result
+	return result, nil
 }
 
-func handleRequest(ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+	for {
+		select {
+		case request := <-ch:
+			result, err := grade(&request, ijq, cjq)
+			if err != nil {
+				// TODO: do something with the error
+				log.Println(err)
+			}
+			log.Println(result)
+			// TODO: do something with result (post to firestore)
+		}
+	}
+}
+
+func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan gradingRequest) {
+	var request gradingRequest
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		http.Error(*w, err.Error(), http.StatusBadRequest)
+	}
+
+	log.Println("New request with submission ID", request.SubmissionID)
+
+	// Send request to submission worker
+	ch <- request
+
+	(*w).Write([]byte("Successfully submission: " + request.SubmissionID))
+}
+
+func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
 	// Init Firebase
 	opt := option.WithCredentialsFile("./serviceAccountKey.json")
 	app, err := firebase.NewApp(context.Background(), nil, opt)
@@ -81,11 +95,10 @@ func handleRequest(ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
 	defer client.Close()
 
 	// Init HTTP Handlers
+	go submissionWorker(requestChannel, ijq, cjq)
 
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
-		result := handleSubmit(w, r, ijq, cjq)
-		log.Println(result)
-		postResultsToFirestore(client, result)
+		handleHTTPSubmitRequest(&w, r, requestChannel)
 	})
 	http.ListenAndServe(":11112", nil)
 }
@@ -94,5 +107,4 @@ func postResultsToFirestore(client *firestore.Client, result *grader.GroupedSubm
 	// TODO: post to firestore
 }
 
-// TODO: fix nested function http misdirect
 // TODO: delete user's files on server
