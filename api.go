@@ -32,6 +32,7 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 	}
 
 	log.Println("New request with submission ID", request.SubmissionID)
+	log.Println(request)
 
 	// Copy source code into /tmp directory
 	filenames := make([]string, len(request.Code))
@@ -54,10 +55,12 @@ func handleSubmit(w http.ResponseWriter, r *http.Request, ijq *grader.IsolateJob
 	result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, filenames, ijq, cjq)
 
 	if err != nil {
+		log.Println(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return nil
 	}
 
+	// TODO: send "submitted" status ok as soon as the use submits
 	w.WriteHeader(http.StatusOK)
 
 	return result
@@ -91,4 +94,5 @@ func postResultsToFirestore(client *firestore.Client, result *grader.GroupedSubm
 	// TODO: post to firestore
 }
 
-// TODO: fix connection refused
+// TODO: fix nested function http misdirect
+// TODO: delete user's files on server

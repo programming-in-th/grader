@@ -1,12 +1,13 @@
 package grader
 
 import (
+	"os"
 	"path"
 	"testing"
 )
 
 func TestReadManifest(t *testing.T) {
-	pathTo := path.Join(taskBasePath, "asdf", "manifest.json")
+	pathTo := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "asdf", "manifest.json")
 	t.Log("Path to manifest.json: ", pathTo)
 	manifestInstance, err := readManifestFromFile(pathTo)
 	if err != nil {

@@ -12,8 +12,6 @@ import (
 	"github.com/programming-in-th/grader/isolate"
 )
 
-const taskBasePath = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/" // TODO: IMPORTANT! CHANGE LATER
-
 /* TEST RESULT TYPES */
 
 // RunVerdict denotes the possible verdicts after running, including Correct, WA, TLE, RE and other errors
@@ -198,7 +196,7 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 }
 
 func groupIndividualResults(checkerResults []SingleTestResult, groups []TestGroup) *GroupedSubmissionResult {
-	finalResults := GroupedSubmissionResult{CompileSuccessful: false}
+	finalResults := GroupedSubmissionResult{CompileSuccessful: true}
 
 	for _, testGroup := range groups {
 		groupResult := SingleGroupResult{
@@ -226,7 +224,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		log.Fatal("No source files provided")
 	}
 	// Locate manifest file and read it
-	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
+	manifestPath := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error in grading submission")
