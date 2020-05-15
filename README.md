@@ -25,6 +25,7 @@ What does each directory/file do?
 * checker - an executable checker script (see Checker)
 
 **Remark 1:** outputs and user_bin directories do not need to be manually created since the grader automatically creates these if they don't exist.
+
 **Remark 2:** the checker script and manifest file must be stored in the root of the task's directory and have the exact names "checker" and "manifest.json" (without quotes)
 
 ## Manifest Format
