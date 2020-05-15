@@ -85,7 +85,6 @@ type problemManifest struct {
 	Groups        []TestGroup
 
 	CompileCommands map[string][]string // Compile commands for each language
-	CheckerPath     string
 
 	taskBasePath      string
 	userBinBasePath   string
@@ -169,7 +168,7 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 					wg.Done()
 				}()
 				job := CheckerJob{
-					manifestInstance.CheckerPath,
+					path.Join(manifestInstance.taskBasePath, "checker"),
 					path.Join(manifestInstance.inputsBasePath, manifestInstance.TestInputs[i]),
 					path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)),
 					path.Join(manifestInstance.solutionsBasePath, manifestInstance.TestSolutions[i]),
