@@ -180,4 +180,4 @@ The grouper must three command line arguments (excluding the name of the grouper
 
 The grouper must then print the score of the test group to standard output as a floating point number.
 
-Note that the grouper should access /tmp/{submissionID}/{testIndex}.check for test index within the range specified by the command line arguments to determine the score.
+Note that the grouper should access /tmp/{submissionID}/{testIndex}.check for test index within the range specified by the command line arguments to determine the score. {submissionID} and {testIndex} are placeholders for the current submission ID and test index respectively.
