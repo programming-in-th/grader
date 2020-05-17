@@ -134,7 +134,7 @@ The checker script must be provided by the user and takes in the following comma
 
 Of course, the checker script is passed to itself as the 0-th argument, but it can be safely ignored.
 
-The checker must then write two lines to standard output. The first line denotes whether or not the user should receive the "Correct" verdict on the test case. If "Correct" is printed, then the user will be judged as "Correct" on the test case. Otherwise, if "Incorrect" is printed, then the user will received a "Wrong Answer" verdict. The second line must include a floating-point number indicating the user's score (*as a percentage*) on the test case. If the "Correct" verdict is given on the first line, then any score within the range [0, 100] is valid. Otherwise, if the "Incorrect" verdict is given on the first line, then the checker must print 0 on the second line. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case.
+The checker must then write two lines to standard output. The first line denotes whether or not the user should receive the "Correct" verdict on the test case. If "Correct" is printed, then the user will be judged as "Correct" on the test case. Otherwise, if "Incorrect" is printed, then the user will received a "Wrong Answer" verdict. The second line must include a floating-point number indicating the user's score on the test case. If the "Correct" verdict is given on the first line, then any real-numbered score is valid. Otherwise, if the "Incorrect" verdict is given on the first line, then the checker must print 0 on the second line. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case.
 
 For example,
 
@@ -152,23 +152,9 @@ Incorrect
 Wrong format
 ```
 
-are valid, but
+are valid outputs from the checker.
 
-```plaintext
-Correct
-1020
-Target reached in less than 20 moves
-```
-
-and
-
-```plaintext
-Incorrect
-5
-Coordinates out of bounds
-```
-
-are invalid.
+**However**, note that the default checker (packaged with the grader) requires that the checker's output be a **percentage** of the test case's full score. Thus, when using one of the groupers packaged with the grader, be aware what their specifications are.
 
 ## Grouper
 The grouper script's role is to gather individual scores and verdicts from the checker to determine the score on a test group. Note that the grouper does not handle dependencies between test groups, as that is already handled automatically by the grader via manifest.json. Hence, the grouper will run once per test group. Note that we provide some groupers for normal use cases, but you may decide to write your own grouper if you need more sophisticated custom functionality.
