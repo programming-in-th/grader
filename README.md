@@ -2,10 +2,12 @@
 
 # Programming.in.th Grader
 
+WIP
+
 ## Directories
 The general directory hierarchy of the grader is as follows:
 - Base directory
-    - compileConfig.json
+    - globalConfig.json
     - Task 1 (directory)
         - manifest.json
         - inputs (directory)
@@ -19,7 +21,7 @@ The general directory hierarchy of the grader is as follows:
         ...
 
 What does each directory/file do?
-* compileConfig.json: contains shell commands needed to compile user programs (see Compile Configuration)
+* globalConfig.json: contains configuration data that persists across all tasks and shell commands needed to compile user programs (see Global Configuration)
 * manifest.json: contains all the meta data about a task (see Manifest Format)
 * inputs: stores input files for each test case. Each file must be of the form 1.in, 2.in, etc. indicating the index of each test case.
 * solutions: stores solution files for each test case. Each file must be of the form 1.sol, 2.sol, etc. indicating the index of each test case.
@@ -30,8 +32,8 @@ What does each directory/file do?
 
 **Remark 2:** the checker script, grouper script and manifest file must be stored in the root of the task's directory and have the exact names "checker", "grouper" and "manifest.json" (without quotes). Furthermore, both the checker and group script must have executable permissions (you can add them with chmod +x)
 
-## Compile Configuration
-The compile configuration is stored in the file compileConfig.json at the root of the base directory. The shell commands used to compile the user's program are stored in a map, keyed by language. Furthermore, since multiple compile commands for different versions of the same language are allowed (and count as different languages), the file extension for each language must also be specified. The JSON file is an array objects containing the following fields:
+## Global Configuration
+The global configuration is stored in the file globalConfig.json at the root of the base directory. The shell commands used to compile the user's program are stored in the CompileConfiguration field, whose value is a map keyed by language. Furthermore, since multiple compile commands for different versions of the same language are allowed (and count as different languages), the file extension for each language must also be specified. The JSON file is an array objects containing the following fields:
 
 **IMPORTANT:** You must still specify the extension for interpreted languages (such as Python) and omit the CompileCommands field from the language's corresponding object.
 
@@ -41,23 +43,31 @@ The compile configuration is stored in the file compileConfig.json at the root o
 
 To denote the user's source code, simply add "\$SRC" as an element in the array. Note that if there are any library files specified in CompileFiles in manifest.json (see Manifest Format), they will be inserted into the command where "\SRC" is as a space-separated string along with the path to the user's source code. You must also add "\$BIN" in the array to denote the argument that indicates the path to the output executable.
 
+The default message to display in the last line of the checker's output for the "Correct" and "Incorrect" verdicts can be configured in the DefaultMessages field, which contains a map that only has the keys "Correct" and "Incorrect".
+
 A sample compile configuration is as follows:
 ```json
-[
-    {
-        "ID": "cpp14",
-        "Extension": "cpp",
-        "CompileCommands": ["/usr/bin/c++", "--std=c++14", "$SRC"]
-    },
-    {
-        "ID": "python3",
-        "Extension": "py"
-    },
-    {
-        "ID": "python2",
-        "Extension": "py"
+{
+    "CompileConfiguration": [
+        {
+            "ID": "cpp14",
+            "Extension": "cpp",
+            "CompileCommands": ["/usr/bin/c++", "--std=c++14", "$SRC"]
+        },
+        {
+            "ID": "python3",
+            "Extension": "py"
+        },
+        {
+            "ID": "python2",
+            "Extension": "py"
+        }
+    ],
+    "DefaultMessages": {
+        "Correct": "Output is correct",
+        "Incorrect": "Output is incorrect"
     }
-]
+}
 ```
 
 ## Manifest Format
@@ -70,7 +80,7 @@ All fields are required, which include:
 * ID: A string indicating the task ID. Must match the task's directory name.
 * DefaultLimits: An object storing the default time limit and memory limit for this task. For any supported language (as specified in Compile Configuration) that is not specified in the Limits field below, the default time limit and memory limit will be used.
     * TimeLimit: A floating-point number indicating the time limit of the task in seconds
-    * MemoryLimit: An integer indicating the memory limit of the task in KB
+    * MemoryLimit: An integer indicating the memory limit of the task in MB
 * Limits (optional): An object storing custom time limits and memory limits for each language. Each key is a language specified in the Global Configuration and each value is an object having the same TimeLimit and MemoryLimit fields as above. These settings can be used in conjunction with DefaultLimits, as it overrides the time limit and memory limit set in DefaultLimits. See remark below for more details.
 * Groups: An array of objects, each denoting one test group. Each group has the following properties:
     * FullScore: A floating-point number indicating the full score of that test group
@@ -87,9 +97,9 @@ Here is a sample manifest.json file:
 ```json
 {
     "ID": "rectsum",
-    "DefaultLimits": { "TimeLimit": 10, "MemoryLimit": 256000 },
+    "DefaultLimits": { "TimeLimit": 10, "MemoryLimit": 256 },
     "Limits": {
-        "python3": { "TimeLimit": 20, "MemoryLimit": 256000 },
+        "python3": { "TimeLimit": 20, "MemoryLimit": 256 },
         "java8": null
     },
     "Groups": [
@@ -115,7 +125,7 @@ Here is a sample manifest.json file:
 }
 ```
 
-To illustrate the concept of the manifest file better, consider the above sample. The default limits are 10 seconds and 256000 KB for all languages except for Python and Java. Since Python is a slow language, we set the time limit for Python at 20 seconds instead, and explicity disallow Java submissions. We see that the first test group contains tests with indices from 1 to 15 (inclusive) and has no dependencies on any other test groups. On the other hand the second test group is comprised of test with indices from 16 to 20 (inclusive) and the user can only score more than 0 points on this test group if the first test group is passed. For C++, we have extra files to compile alongside the user's source code, namely "joi.h" and "joi.cpp" repsectively.
+To illustrate the concept of the manifest file better, consider the above sample. The default limits are 10 seconds and 256 MB for all languages except for Python and Java. Since Python is a slow language, we set the time limit for Python at 20 seconds instead, and explicity disallow Java submissions. We see that the first test group contains tests with indices from 1 to 15 (inclusive) and has no dependencies on any other test groups. On the other hand the second test group is comprised of test with indices from 16 to 20 (inclusive) and the user can only score more than 0 points on this test group if the first test group is passed. For C++, we have extra files to compile alongside the user's source code, namely "joi.h" and "joi.cpp" repsectively.
 
 **Note:** for output-only problems, omit the DefaultLimits field (or set it to null) and use the following configuration for the Limits field:
 ```json
@@ -134,13 +144,13 @@ The checker script must be provided by the user and takes in the following comma
 
 Of course, the checker script is passed to itself as the 0-th argument, but it can be safely ignored.
 
-The checker must then write two lines to standard output. The first line denotes whether or not the user should receive the "Correct" verdict on the test case. If "Correct" is printed, then the user will be judged as "Correct" on the test case. Otherwise, if "Incorrect" is printed, then the user will received a "Wrong Answer" verdict. The second line must include a floating-point number indicating the user's score on the test case. If the "Correct" verdict is given on the first line, then any real-numbered score is valid. Otherwise, if the "Incorrect" verdict is given on the first line, then the checker must print 0 on the second line. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case.
+The checker must then write two lines to standard output. The first line denotes whether or not the user should receive the "Correct" verdict on the test case. If "Correct" is printed, then the user will be judged as "Correct" on the test case. Otherwise, if "Incorrect" is printed, then the user will received a "Wrong Answer" verdict. The second line must include a floating-point number indicating the user's score on the test case. If the "Correct" verdict is given on the first line, then any real-numbered score is valid. Otherwise, if the "Incorrect" verdict is given on the first line, then the checker must print 0 on the second line. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case. If no message is provided, the default message specified in the global configuration (see Global Configuration) will be automatically added instead.
 
 For example,
 
 ```plaintext
 Correct
-75
+7.5
 Target reached in 25 moves
 ```
 
@@ -154,7 +164,30 @@ Wrong format
 
 are valid outputs from the checker.
 
-**However**, note that the default checker (packaged with the grader) requires that the checker's output be a **percentage** of the test case's full score. Thus, when using one of the groupers packaged with the grader, be aware what their specifications are.
+**However**, note that the default checker (packaged with the grader) requires that the checker's outputted score be **out of 10** relative to the test case's full score (for example, the checker will output 2.5 for a score of 5/20). Thus, when using one of the groupers packaged with the grader, be aware what their specifications are.
+
+In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually.
+
+Time Limit Exceeded:
+```plaintext
+Time limit exceeded
+0
+Process killed: wall time limit exceeded
+```
+
+Memory Limit Exceeded:
+```plaintext
+Memory limit exceeded
+0
+Process killed: max-rss exceeds memory limit
+```
+
+Runtime error:
+```plaintext
+Runtime error
+0
+Process killed: runtime error
+```
 
 ## Grouper
 The grouper script's role is to gather individual scores and verdicts from the checker to determine the score on a test group. Note that the grouper does not handle dependencies between test groups, as that is already handled automatically by the grader via manifest.json. Hence, the grouper will run once per test group. Note that we provide some groupers for normal use cases, but you may decide to write your own grouper if you need more sophisticated custom functionality.
@@ -167,3 +200,6 @@ The grouper must three command line arguments (excluding the name of the grouper
 The grouper must then print the score of the test group to standard output as a floating point number.
 
 Note that the grouper should access /tmp/{submissionID}/{testIndex}.check for test index within the range specified by the command line arguments to determine the score. {submissionID} and {testIndex} are placeholders for the current submission ID and test index respectively.
+
+### Default Grouper
+A default grouper is provided which can be used with the majority of tasks. As stated in the Checker section, the grouper accepts scores on tests out of 10 relative to the full score of the test group. It will then scale the score out of 10 by the full score of the test group, and take the **minimum** score among all tests in the test group and print it to standard output.
