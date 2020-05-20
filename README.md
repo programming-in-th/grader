@@ -147,7 +147,7 @@ To illustrate the concept of the manifest file better, consider the above sample
 ```
 
 ## Checker
-The checker script is run for each test case and the results are stored as plain text in /tmp/{submissionID}/{testCaseIndex}.check, where {submissionID} and {testCaseIndex} are placeholders for the submission ID and current test case index respectively. The grouper will then read from these files to determine the scores for each test group.
+The checker script is run for each test case and the results are stored as plain text in /tmp/grader/{submissionID}/{testCaseIndex}.check, where {submissionID} and {testCaseIndex} are placeholders for the submission ID and current test case index respectively. The grouper will then read from these files to determine the scores for each test group.
 
 The checker script must be provided by the user and takes in the following command-line arguments:
 1. **Absolute** path to the input file of the test case
@@ -189,7 +189,7 @@ Wrong format
 
 are valid outputs from the checker.
 
-In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually. In other words, the following verdicts **must not** be used by a custom checker.
+In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/grader/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually. In other words, the following verdicts **must not** be used by a custom checker.
 
 Time Limit Exceeded:
 ```plaintext
@@ -224,7 +224,7 @@ The grouper must three command line arguments (excluding the name of the grouper
 
 The grouper must then print the score of the test group to standard output as a floating point number.
 
-Note that the grouper should access /tmp/{submissionID}/{testIndex}.check for test index within the range specified by the command line arguments to determine the score. {submissionID} and {testIndex} are placeholders for the current submission ID and test index respectively.
+Note that the grouper should access /tmp/grader/{submissionID}/{testIndex}.check for test index within the range specified by the command line arguments to determine the score. {submissionID} and {testIndex} are placeholders for the current submission ID and test index respectively.
 
 ### Default Groupers
 A default grouper is provided which can be used with the majority of tasks. As stated in the Checker section, the grouper accepts scores on tests out of 10 relative to the full score of the test group. It will then scale the score out of 10 by the full score of the test group, and take the **minimum** score among all tests in the test group and print it to standard output.

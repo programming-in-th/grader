@@ -24,13 +24,14 @@ func compileSubmission(submissionID string, problemID string, targLang string, s
 			compileCommands[i] = sourceFilePaths[sourceFileIndex]
 			sourceFileIndex++
 		} else if arg[:9] == "$USER_BIN" {
-			compileCommands[i] = path.Join(manifestInstance.userBinBasePath, submissionID)
+			compileCommands[i] = path.Join(BASE_TMP_PATH, submissionID, "bin")
 		}
 	}
 	err := exec.Command(compileCommands[0], compileCommands[1:]...).Run()
 	if err != nil {
 		log.Println("Compile error. Make sure source files are valid paths and manifest.json is using absolute paths only\n", err)
+		log.Println("Compile commands:", compileCommands)
 		return false, ""
 	}
-	return true, path.Join(manifestInstance.userBinBasePath, submissionID)
+	return true, path.Join(BASE_TMP_PATH, submissionID, "bin")
 }

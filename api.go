@@ -12,9 +12,13 @@ import (
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
+	"github.com/pkg/errors"
 	"github.com/programming-in-th/grader/grader"
+	"github.com/programming-in-th/grader/util"
 	"google.golang.org/api/option"
 )
+
+const BASE_SRC_PATH = grader.BASE_TMP_PATH + "/source"
 
 type gradingRequest struct {
 	SubmissionID string
@@ -24,13 +28,14 @@ type gradingRequest struct {
 }
 
 func grade(request *gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) (*grader.GroupedSubmissionResult, error) {
-	// Copy source code into /tmp directory
+	// Copy source code into tmp directory
 	filenames := make([]string, len(request.Code))
 	for i := 0; i < len(request.Code); i++ {
-		filenames[i] = path.Join("/tmp", request.SubmissionID+"_"+strconv.Itoa(i)+"."+request.TargLang)
+		// TODO: get rid of request.TargLang
+		filenames[i] = path.Join(BASE_SRC_PATH, request.SubmissionID+"_"+strconv.Itoa(i)+"."+request.TargLang)
 		err := ioutil.WriteFile(filenames[i], []byte(request.Code[i]), 0644)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "Cannot copy source code into tmp directory")
 		}
 	}
 
@@ -81,6 +86,12 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan gr
 }
 
 func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+	// Create base tmp path for source files (all submissions)
+	err := util.CreateDirIfNotExist(BASE_SRC_PATH)
+	if err != nil {
+		log.Fatalln("Error initializing API: cannot create base src path")
+	}
+
 	// Init Firebase
 	opt := option.WithCredentialsFile("./serviceAccountKey.json")
 	app, err := firebase.NewApp(context.Background(), nil, opt)
@@ -100,7 +111,7 @@ func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cj
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, requestChannel)
 	})
-	http.ListenAndServe(":11112", nil)
+	http.ListenAndServe(":11112", nil) // TODO: set to localhost only
 }
 
 func postResultsToFirestore(client *firestore.Client, result *grader.GroupedSubmissionResult) {

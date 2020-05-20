@@ -5,12 +5,14 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/programming-in-th/grader/isolate"
+	"github.com/programming-in-th/grader/util"
 )
+
+const BASE_TMP_PATH = "/tmp/grader"
 
 /* TEST RESULT TYPES */
 
@@ -20,8 +22,10 @@ import (
 type RunVerdict string
 
 const (
-	// CorrectVerdict means the program passed the test
+	// ACVerdict means the program passed the test
 	ACVerdict RunVerdict = "P"
+	// PartialVerdict means the program was partially correct on the test
+	PartialVerdict RunVerdict = "~"
 	// WAVerdict means the program got the wrong answer on the test
 	WAVerdict RunVerdict = "-"
 	// TLEVerdict means the program timed out
@@ -87,9 +91,7 @@ type problemManifest struct {
 	CompileCommands map[string][]string // Compile commands for each language
 
 	taskBasePath      string
-	userBinBasePath   string
 	inputsBasePath    string
-	outputsBasePath   string
 	solutionsBasePath string
 }
 
@@ -111,7 +113,7 @@ func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID s
 				manifestInstance.TimeLimit,
 				manifestInstance.MemoryLimit,
 				path.Join(manifestInstance.inputsBasePath, manifestInstance.TestInputs[i]),
-				path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strings.TrimSpace(strconv.Itoa(i))),
+				path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(i)+".out"),
 				ch,
 			}
 			log.Println("Pushing job into job queue:")
@@ -170,7 +172,7 @@ func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *pr
 				job := CheckerJob{
 					path.Join(manifestInstance.taskBasePath, "checker"),
 					path.Join(manifestInstance.inputsBasePath, manifestInstance.TestInputs[i]),
-					path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)),
+					path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(i)+".out"),
 					path.Join(manifestInstance.solutionsBasePath, manifestInstance.TestSolutions[i]),
 					ch,
 				}
@@ -227,17 +229,13 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error in grading submission")
+		return nil, errors.Wrap(err, "Error reading manifest file")
 	}
 
-	// Create needed directories if they don't exist
-	err = createDirIfNotExist(path.Join(taskBasePath, problemID, "outputs"))
+	// Create tmp directory for submission
+	err = util.CreateDirIfNotExist(path.Join(BASE_TMP_PATH, submissionID))
 	if err != nil {
-		return nil, errors.Wrap(err, "Error in grading submission")
-	}
-	err = createDirIfNotExist(path.Join(taskBasePath, problemID, "user_bin"))
-	if err != nil {
-		return nil, errors.Wrap(err, "Error in grading submission")
+		return nil, errors.Wrap(err, "Error creating working tmp folder")
 	}
 
 	// Check if target language is supported
@@ -265,7 +263,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		if len(sourceFilePaths) > 1 {
 			log.Fatal("Grader does not support more than one source file for interpreted languages")
 		}
-		err := os.Rename(sourceFilePaths[0], path.Join(manifestInstance.userBinBasePath, submissionID))
+		err := os.Rename(sourceFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
 		if err != nil {
 			return &GroupedSubmissionResult{CompileSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
 		}
@@ -273,26 +271,16 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 	}
 
 	isolateResults := waitForIsolateTestResults(manifestInstance, submissionID, userBinPath, ijq)
+	log.Println("Isolate test case results:", isolateResults)
 	checkerResults := waitForCheckerResults(isolateResults, manifestInstance, submissionID, cjq)
 	log.Println("Individual test case results:", checkerResults)
 	finalResults := groupIndividualResults(checkerResults, manifestInstance.Groups)
 
 	// Remove user output file to not clutter up disk
 	for i := 0; i < len(manifestInstance.TestInputs); i++ {
-		os.Remove(path.Join(manifestInstance.outputsBasePath, submissionID+"_output_"+strconv.Itoa(i)))
+		os.Remove(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(i)+".out"))
 	}
 	os.Remove(userBinPath)
 
 	return finalResults, nil
-}
-
-func createDirIfNotExist(path string) error {
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		errDir := os.MkdirAll(path, 0755)
-		if errDir != nil {
-			return errDir
-		}
-	}
-	return nil
 }

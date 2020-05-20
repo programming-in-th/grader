@@ -29,9 +29,7 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	json.Unmarshal(manifestFileBytes, &manifestInstance)
 
 	manifestInstance.taskBasePath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), manifestInstance.ID)
-	manifestInstance.userBinBasePath = path.Join(manifestInstance.taskBasePath, "user_bin")
 	manifestInstance.inputsBasePath = path.Join(manifestInstance.taskBasePath, "inputs")
-	manifestInstance.outputsBasePath = path.Join(manifestInstance.taskBasePath, "outputs")
 	manifestInstance.solutionsBasePath = path.Join(manifestInstance.taskBasePath, "solutions")
 
 	// Check if compile command keys matches language support
