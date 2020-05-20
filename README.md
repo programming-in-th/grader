@@ -2,7 +2,7 @@
 
 # Programming.in.th Grader
 
-WIP
+Work in progress
 
 ## Directories
 The general directory hierarchy of the grader is as follows:
@@ -55,25 +55,25 @@ The default message to display in the last line of the checker's output for the 
 A sample global configuration is as follows:
 ```json
 {
-    "CompileConfiguration": [
-        {
-            "ID": "cpp14",
-            "Extension": "cpp",
-            "CompileCommands": ["/usr/bin/c++", "--std=c++14", "$SRC"]
-        },
-        {
-            "ID": "python3",
-            "Extension": "py"
-        },
-        {
-            "ID": "python2",
-            "Extension": "py"
-        }
-    ],
-    "DefaultMessages": {
-        "Correct": "Output is correct",
-        "Incorrect": "Output is incorrect"
+  "CompileConfiguration": [
+    {
+      "ID": "cpp14",
+      "Extension": "cpp",
+      "CompileCommands": ["/usr/bin/c++", "--std=c++14", "$SRC"]
+    },
+    {
+      "ID": "python3",
+      "Extension": "py"
+    },
+    {
+      "ID": "python2",
+      "Extension": "py"
     }
+  ],
+  "DefaultMessages": {
+    "Correct": "Output is correct",
+    "Incorrect": "Output is incorrect"
+  }
 }
 ```
 
@@ -105,34 +105,34 @@ All fields are required, which include:
 Here is a sample manifest.json file:
 ```json
 {
-    "ID": "rectsum",
-    "DefaultLimits": { "TimeLimit": 10, "MemoryLimit": 256 },
-    "Limits": {
-        "python3": { "TimeLimit": 20, "MemoryLimit": 256 },
-        "java8": null
+  "ID": "rectsum",
+  "DefaultLimits": { "TimeLimit": 10, "MemoryLimit": 256 },
+  "Limits": {
+    "python3": { "TimeLimit": 20, "MemoryLimit": 256 },
+    "java8": null
+  },
+  "Checker": "custom",
+  "Grouper": "min",
+  "Groups": [
+    {
+      "FullScore": 29,
+      "TestIndices": {
+        "Start": 1,
+        "End": 15
+      }
     },
-    "Checker": "custom",
-    "Grouper": "min",
-    "Groups": [
-        {
-            "FullScore": 29,
-            "TestIndices": {
-            "Start": 1,
-            "End": 15
-            }
-        },
-        {
-            "FullScore": 71,
-            "Dependencies": [1],
-            "TestIndices": {
-                "Start": 16,
-                "End": 20
-            }
-        }
-    ],
-    "CompileFiles": {
-        "cpp14": ["joi.h", "joi.cpp"]
+    {
+      "FullScore": 71,
+      "Dependencies": [1],
+      "TestIndices": {
+        "Start": 16,
+        "End": 20
+      }
     }
+  ],
+  "CompileFiles": {
+    "cpp14": ["joi.h", "joi.cpp"]
+  }
 }
 ```
 
@@ -142,7 +142,7 @@ To illustrate the concept of the manifest file better, consider the above sample
 
 ```json
 "Limits": {
-    "text": {}
+  "text": {}
 }
 ```
 
