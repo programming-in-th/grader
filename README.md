@@ -161,17 +161,24 @@ The checker must then write two lines to standard output. The first line denotes
 * Correct
 * Partially correct
 * Incorrect
+* Time Limit Exceeded (!)
+* Memory Limit Exceeded (!)
+* Runtime Error (!)
+* Judging Error
 
-The score of the user's program on the current test case must then be printed on the second line. If the user receives a "Correct" or "Partially correct" verdict on the current test case, then the score can be **any real floating-point number**. Otherwise, if the user receives an "Incorrect" verdict, then the score on the second line of the custom checker's output must be 0. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case. If no message is provided, the default message specified in the global configuration (see Global Configuration) will be automatically added instead.
+In a custom checker, the score of the user's program on the current test case must then be printed on the second line. If the user receives a "Correct" or "Partially correct" verdict on the current test case, then the score can be **any real floating-point number**. Otherwise, if the user receives an "Incorrect" verdict, then the score on the second line of the custom checker's output must be 0. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case. If no message is provided, the default message specified in the global configuration (see Global Configuration) will be automatically added instead.
 
-For example,
+(!) In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/grader/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually. In other words, the following verdicts **must not** be used by a custom checker.
+
+The "Judging Error" verdict can be output from both the grader and a custom checker. The grader will output "Judging Error" when there is an internal error of the grader. On the other hand, the custom checker should output "Judging Error" when there is an internal problem of the custom checker.
+
+For example the following are valid outputs from the checker,
 
 ```plaintext
 Correct
 20
 Target reached in 25 moves
 ```
-,
 
 ```plaintext
 Partially Correct
@@ -179,33 +186,24 @@ Partially Correct
 Target reached in 30 moves
 ```
 
-and
-
 ```plaintext
 Incorrect
 0
 Wrong format
 ```
 
-are valid outputs from the checker.
-
-In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/grader/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually. In other words, the following verdicts **must not** be used by a custom checker.
-
-Time Limit Exceeded:
 ```plaintext
 Time limit exceeded
 0
 Process killed: wall time limit exceeded
 ```
 
-Memory Limit Exceeded:
 ```plaintext
 Memory limit exceeded
 0
 Process killed: max-rss exceeds memory limit
 ```
 
-Runtime error:
 ```plaintext
 Runtime error
 0
