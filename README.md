@@ -55,7 +55,7 @@ The global configuration is stored in the file globalConfig.json at the root of 
 
 To denote the user's source code, simply add "\$SRC" as an element in the array. Note that if there are any library files specified in CompileFiles in manifest.json (see Manifest Format), they will be inserted into the command where "\SRC" is as a space-separated string along with the path to the user's source code. You must also add "\$BIN" in the array to denote the argument that indicates the path to the output executable.
 
-The default message to display in the last line of the checker's output for the "Correct" and "Incorrect" verdicts can be configured in the DefaultMessages field, which contains a map that only has the keys "Correct" and "Incorrect".
+The default message to display in the last line of the checker's output for each verdict (see Checker) can be configured in the DefaultMessages field, which contains a map that has keys equal to each verdict, and values equal to the default message for the corresponding verdict.
 
 A sample global configuration is as follows:
 ```json
@@ -77,7 +77,12 @@ A sample global configuration is as follows:
   ],
   "DefaultMessages": {
     "Correct": "Output is correct",
+    "Partially Correct": "Output is partially correct",
     "Incorrect": "Output is incorrect"
+    "Time Limit Exceeded": "Judge killed: time limit exceeded",
+    "Memory Limit Exceeded": "Judge killed: memory limit exceeded",
+    "Runtime error": "Judge killed: runtime error",
+    "Judge error": "Judge killed: internal error",
   }
 }
 ```
