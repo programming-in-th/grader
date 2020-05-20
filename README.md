@@ -78,11 +78,11 @@ A sample global configuration is as follows:
   "DefaultMessages": {
     "Correct": "Output is correct",
     "Partially Correct": "Output is partially correct",
-    "Incorrect": "Output is incorrect"
+    "Incorrect": "Output is incorrect",
     "Time Limit Exceeded": "Judge killed: time limit exceeded",
     "Memory Limit Exceeded": "Judge killed: memory limit exceeded",
     "Runtime error": "Judge killed: runtime error",
-    "Judge error": "Judge killed: internal error",
+    "Judge error": "Judge killed: internal error"
   }
 }
 ```
