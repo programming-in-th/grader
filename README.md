@@ -7,27 +7,32 @@ Work in progress
 ## Directories
 The general directory hierarchy of the grader is as follows:
 - Base directory
-    - globalConfig.json
-    - defaultCheckers (directory)
-    - defaultGroupers (directory)
-    - Task 1 (directory)
-        - manifest.json
-        - compileFiles (directory)
-        - inputs (directory)
-        - solutions (directory)
-        - checker
-        - grouper
-    - Task 2 (directory)
-        - manifest.json
-        ...
-    - Task 3 (directory)
-        ...
+    - config (directory)
+        - globalConfig.json
+        - defaultCheckers (directory)
+        - defaultGroupers (directory)
+    - tasks (directory)
+        - Task 1 (directory)
+            - manifest.json
+            - compileFiles (directory)
+            - inputs (directory)
+            - solutions (directory)
+            - checker
+            - grouper
+        - Task 2 (directory)
+            - manifest.json
+            ...
+        - Task 3 (directory)
+            ...
 
 What does each directory/file do?
+
+Configuration (under *config*):
 * globalConfig.json: contains configuration data that persists across all tasks and shell commands needed to compile user programs (see Global Configuration)
 * defaultCheckers: a directory containing executables which are the checker scripts provided by the grader. For most tasks, it is suitable to use one of the checkers contained in this folder. For more details, see Default Checkers.
 * defaultGroupers: a directory containing executables which are the groupers provided by the grader. For most tasks, it is suitable to use one of the groupers contained in this folder. For more details, see Default Groupers.
 
+Tasks (under *tasks*):
 * manifest.json: contains all the meta data about a task (see Manifest Format)
 * compileFiles: contains source files that will be compiled alongside the user's source file (used for most non-batch tasks)
 * inputs: stores input files for each test case. Each file must be of the form 1.in, 2.in, etc. indicating the index of each test case.
@@ -37,7 +42,7 @@ What does each directory/file do?
 
 **Remark 1:** outputs and user\_bin directories do not need to be manually created since the grader automatically creates these if they don't exist.
 
-**Remark 2:** the manifest file must be stored in the root of the task's directory and have the exact name manifest.json" (without quotes). The same applies to the custom checker and/or grouper if included, which must have the names "checker" and "grouper" respectively. Furthermore, both the checker and group script must have executable permissions (you can add them with chmod +x).
+**Remark 2:** the manifest file must be stored in the root of the task's directory and have the exact name "manifest.json" (without quotes). The same applies to the custom checker and/or grouper if included, which must have the names "checker" and "grouper" respectively. Furthermore, both the checker and group script must have executable permissions (you can add them with chmod +x).
 
 ## Global Configuration
 The global configuration is stored in the file globalConfig.json at the root of the base directory. The shell commands used to compile the user's program are stored in the CompileConfiguration field, whose value is a map keyed by language. Furthermore, since multiple compile commands for different versions of the same language are allowed (and count as different languages), the file extension for each language must also be specified. The JSON file is an array objects containing the following fields:
