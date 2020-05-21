@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -10,12 +9,11 @@ import (
 	"path"
 	"strconv"
 
-	"cloud.google.com/go/firestore"
-	firebase "firebase.google.com/go"
+	// "cloud.google.com/go/firestore"
+	// firebase "firebase.google.com/go"
 	"github.com/pkg/errors"
 	"github.com/programming-in-th/grader/grader"
-	"github.com/programming-in-th/grader/util"
-	"google.golang.org/api/option"
+	// "google.golang.org/api/option"
 )
 
 const BASE_SRC_PATH = grader.BASE_TMP_PATH + "/source"
@@ -86,25 +84,6 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan gr
 }
 
 func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
-	// Create base tmp path for source files (all submissions)
-	err := util.CreateDirIfNotExist(BASE_SRC_PATH)
-	if err != nil {
-		log.Fatalln("Error initializing API: cannot create base src path")
-	}
-
-	// Init Firebase
-	opt := option.WithCredentialsFile("./serviceAccountKey.json")
-	app, err := firebase.NewApp(context.Background(), nil, opt)
-	if err != nil {
-		log.Fatalf("error initializing app: %v", err)
-	}
-	client, err := app.Firestore(context.Background())
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	defer client.Close()
-
 	// Init HTTP Handlers
 	go submissionWorker(requestChannel, ijq, cjq)
 
@@ -112,8 +91,4 @@ func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cj
 		handleHTTPSubmitRequest(&w, r, requestChannel)
 	})
 	http.ListenAndServe(":11112", nil) // TODO: set to localhost only
-}
-
-func postResultsToFirestore(client *firestore.Client, result *grader.GroupedSubmissionResult) {
-	// TODO: post to firestore
 }

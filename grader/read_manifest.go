@@ -28,7 +28,7 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	var manifestInstance problemManifest
 	json.Unmarshal(manifestFileBytes, &manifestInstance)
 
-	manifestInstance.taskBasePath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), manifestInstance.ID)
+	manifestInstance.taskBasePath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", manifestInstance.ID)
 	manifestInstance.inputsBasePath = path.Join(manifestInstance.taskBasePath, "inputs")
 	manifestInstance.solutionsBasePath = path.Join(manifestInstance.taskBasePath, "solutions")
 

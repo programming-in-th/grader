@@ -221,7 +221,7 @@ func groupIndividualResults(checkerResults []SingleTestResult, groups []TestGrou
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
 func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *IsolateJobQueue, cjq chan CheckerJob) (*GroupedSubmissionResult, error) {
-	taskBasePath := os.Getenv("GRADER_TASK_BASE_PATH")
+	taskBasePath := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks")
 	if len(sourceFilePaths) == 0 {
 		log.Fatal("No source files provided")
 	}
