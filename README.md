@@ -57,6 +57,8 @@ To denote the user's source code, simply add "\$SRC" as an element in the array.
 
 The default message to display in the last line of the checker's output for each verdict (see Checker) can be configured in the DefaultMessages field, which contains a map that has keys equal to each verdict, and values equal to the default message for the corresponding verdict.
 
+The location of the sandbox binary (named "isolate") must be specified, in case it is installed in a non-standard location. Specify this with the IsolateBinPath field.
+
 A sample global configuration is as follows:
 ```json
 {
@@ -83,7 +85,8 @@ A sample global configuration is as follows:
     "Memory Limit Exceeded": "Judge killed: memory limit exceeded",
     "Runtime error": "Judge killed: runtime error",
     "Judge error": "Judge killed: internal error"
-  }
+  },
+  "IsolateBinPath": "/usr/bin/isolate"
 }
 ```
 
