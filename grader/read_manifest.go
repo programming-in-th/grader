@@ -11,14 +11,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func convInterfaceSlicetoStringSlice(inp []interface{}) []string {
-	ret := make([]string, 0)
-	for _, v := range inp {
-		ret = append(ret, v.(string))
-	}
-	return ret
-}
-
 func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	manifestFileBytes, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
