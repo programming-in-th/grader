@@ -7,9 +7,7 @@ import (
 )
 
 // Compiles user source into one file according to arguments in manifest.json
-func compileSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, manifestInstance *problemManifest) (bool, string) {
-	// This should make a copy
-	compileCommands := manifestInstance.CompileCommands[targLang]
+func compileSubmission(submissionID string, problemID string, sourceFilePaths []string, compileCommands []string) (bool, string) {
 	// Regexp gets contents of first [i] match including brackets
 	sourceFileIndex := 0
 	for i, arg := range compileCommands {

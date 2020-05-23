@@ -6,8 +6,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"reflect"
-	"sort"
 	"strconv"
 	"sync"
 
@@ -17,6 +15,7 @@ import (
 )
 
 const BASE_TMP_PATH = "/tmp/grader"
+const BASE_SRC_PATH = BASE_TMP_PATH + "/source"
 
 /* TEST RESULT TYPES */
 
@@ -92,11 +91,25 @@ type problemManifest struct {
 	TestSolutions []string // names of solution files (inside of solutions/ DO NOT specify path)
 	Groups        []TestGroup
 
-	CompileCommands map[string][]string // Compile commands for each language
-
 	taskBasePath      string
 	inputsBasePath    string
 	solutionsBasePath string
+}
+
+func getLangCompileConfig(globalConfigInstance *GlobalConfiguration, targLang string) *LangCompileConfiguration {
+	// Find target language's compile configuration
+	foundLang := false
+	var langConfig LangCompileConfiguration
+	for _, langConfig = range globalConfigInstance.CompileConfiguration {
+		if langConfig.ID == targLang {
+			foundLang = true
+			break
+		}
+	}
+	if !foundLang {
+		return nil
+	}
+	return &langConfig
 }
 
 func readManifestFromFile(manifestPath string) (*problemManifest, error) {
@@ -111,21 +124,6 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	manifestInstance.taskBasePath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", manifestInstance.ID)
 	manifestInstance.inputsBasePath = path.Join(manifestInstance.taskBasePath, "inputs")
 	manifestInstance.solutionsBasePath = path.Join(manifestInstance.taskBasePath, "solutions")
-
-	// Check if compile command keys matches language support
-	compileCommandKeys := make([]string, len(manifestInstance.CompileCommands))
-	i := 0
-	for k := range manifestInstance.CompileCommands {
-		compileCommandKeys[i] = k
-		i++
-	}
-
-	sort.Slice(compileCommandKeys, func(i, j int) bool { return compileCommandKeys[i] < compileCommandKeys[j] })
-	sort.Slice(manifestInstance.LangSupport, func(i, j int) bool { return manifestInstance.LangSupport[i] < manifestInstance.LangSupport[j] })
-
-	if !reflect.DeepEqual(compileCommandKeys, manifestInstance.LangSupport) {
-		return nil, errors.New("Manifest.json invalid: every language supported must have compile commands and vice versa")
-	}
 
 	return &manifestInstance, nil
 }
@@ -255,11 +253,36 @@ func groupIndividualResults(checkerResults []SingleTestResult, groups []TestGrou
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
-func GradeSubmission(submissionID string, problemID string, targLang string, sourceFilePaths []string, ijq *IsolateJobQueue, cjq chan CheckerJob) (*GroupedSubmissionResult, error) {
+func GradeSubmission(submissionID string, problemID string, targLang string, code []string, ijq *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*GroupedSubmissionResult, error) {
 	taskBasePath := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks")
-	if len(sourceFilePaths) == 0 {
-		log.Fatal("No source files provided")
+
+	langConfig := getLangCompileConfig(globalConfigInstance, targLang)
+	if langConfig == nil {
+		return &GroupedSubmissionResult{CompileSuccessful: false}, nil
 	}
+
+	if len(code) == 0 {
+		return &GroupedSubmissionResult{CompileSuccessful: false}, nil
+	}
+
+	// Copy source code into tmp directory
+	srcFilePaths := make([]string, len(code))
+	for i := 0; i < len(code); i++ {
+		// TODO: get rid of request.TargLang
+		srcFilePaths[i] = path.Join(BASE_SRC_PATH, submissionID+"_"+strconv.Itoa(i)+"."+langConfig.Extension)
+		err := ioutil.WriteFile(srcFilePaths[i], []byte(code[i]), 0644)
+		if err != nil {
+			return nil, errors.Wrap(err, "Cannot copy source code into tmp directory")
+		}
+	}
+
+	// Remove source files after judging
+	defer func() {
+		for _, file := range srcFilePaths {
+			os.Remove(file)
+		}
+	}()
+
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
@@ -281,6 +304,9 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 		}
 	}
 	if !langSupportContainsTargLang {
+		log.Println("no lang support")
+		log.Println("targLang:", targLang)
+		log.Println("LangSupport:", manifestInstance.LangSupport)
 		return nil, errors.New("Error in grading submission: language not supported")
 	}
 
@@ -288,17 +314,17 @@ func GradeSubmission(submissionID string, problemID string, targLang string, sou
 	// TODO: Handle other languages that don't need compiling
 	// TODO: Compile fails without absolute paths
 	var userBinPath string
-	if len(manifestInstance.CompileCommands) != 0 {
+	if langConfig.CompileCommands != nil && len(langConfig.CompileCommands) != 0 {
 		var compileSuccessful bool
-		compileSuccessful, userBinPath = compileSubmission(submissionID, problemID, targLang, sourceFilePaths, manifestInstance)
+		compileSuccessful, userBinPath = compileSubmission(submissionID, problemID, srcFilePaths, langConfig.CompileCommands)
 		if !compileSuccessful {
 			return &GroupedSubmissionResult{CompileSuccessful: false}, nil
 		}
 	} else {
-		if len(sourceFilePaths) > 1 {
+		if len(srcFilePaths) > 1 {
 			log.Fatal("Grader does not support more than one source file for interpreted languages")
 		}
-		err := os.Rename(sourceFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
+		err := os.Rename(srcFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
 		if err != nil {
 			return &GroupedSubmissionResult{CompileSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
 		}

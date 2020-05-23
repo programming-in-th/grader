@@ -2,21 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path"
-	"strconv"
 
 	// "cloud.google.com/go/firestore"
 	// firebase "firebase.google.com/go"
-	"github.com/pkg/errors"
 	"github.com/programming-in-th/grader/grader"
 	// "google.golang.org/api/option"
 )
-
-const BASE_SRC_PATH = grader.BASE_TMP_PATH + "/source"
 
 type gradingRequest struct {
 	SubmissionID string
@@ -25,26 +20,8 @@ type gradingRequest struct {
 	Code         []string
 }
 
-func grade(request *gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) (*grader.GroupedSubmissionResult, error) {
-	// Copy source code into tmp directory
-	filenames := make([]string, len(request.Code))
-	for i := 0; i < len(request.Code); i++ {
-		// TODO: get rid of request.TargLang
-		filenames[i] = path.Join(BASE_SRC_PATH, request.SubmissionID+"_"+strconv.Itoa(i)+"."+request.TargLang)
-		err := ioutil.WriteFile(filenames[i], []byte(request.Code[i]), 0644)
-		if err != nil {
-			return nil, errors.Wrap(err, "Cannot copy source code into tmp directory")
-		}
-	}
-
-	// Remove source files after judging
-	defer func() {
-		for _, file := range filenames {
-			os.Remove(file)
-		}
-	}()
-
-	result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, filenames, ijq, cjq)
+func grade(request *gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob, globalConfig *grader.GlobalConfiguration) (*grader.GroupedSubmissionResult, error) {
+	result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, request.Code, ijq, cjq, globalConfig)
 
 	if err != nil {
 		return nil, err
@@ -53,11 +30,11 @@ func grade(request *gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader
 	return result, nil
 }
 
-func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob, globalConfig *grader.GlobalConfiguration) {
 	for {
 		select {
 		case request := <-ch:
-			result, err := grade(&request, ijq, cjq)
+			result, err := grade(&request, ijq, cjq, globalConfig)
 			if err != nil {
 				// TODO: do something with the error
 				log.Println(err)
@@ -84,8 +61,13 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan gr
 }
 
 func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+	globalConfig, err := grader.ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "globalConfig.json"))
+	if err != nil {
+		log.Fatal("Error starting grader")
+	}
+
 	// Init HTTP Handlers
-	go submissionWorker(requestChannel, ijq, cjq)
+	go submissionWorker(requestChannel, ijq, cjq, globalConfig)
 
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, requestChannel)

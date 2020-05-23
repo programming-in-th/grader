@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"path"
 
 	"github.com/programming-in-th/grader/grader"
 	"github.com/programming-in-th/grader/util"
@@ -16,13 +15,13 @@ func main() {
 	}
 
 	// Create base tmp path for user binaries and outputs
-	err := util.CreateDirIfNotExist(path.Join(grader.BASE_TMP_PATH))
+	err := util.CreateDirIfNotExist(grader.BASE_TMP_PATH)
 	if err != nil {
 		log.Fatal("Error creating working tmp folder")
 	}
 
 	// Create base tmp path for source files (all submissions)
-	err = util.CreateDirIfNotExist(BASE_SRC_PATH)
+	err = util.CreateDirIfNotExist(grader.BASE_SRC_PATH)
 	if err != nil {
 		log.Fatalln("Error initializing API: cannot create base src path")
 	}
