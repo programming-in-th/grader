@@ -83,8 +83,8 @@ A sample global configuration is as follows:
     "Incorrect": "Output is incorrect",
     "Time Limit Exceeded": "Judge killed: time limit exceeded",
     "Memory Limit Exceeded": "Judge killed: memory limit exceeded",
-    "Runtime error": "Judge killed: runtime error",
-    "Judge error": "Judge killed: internal error"
+    "Runtime Error": "Judge killed: runtime error",
+    "Judge Error": "Judge killed: internal error"
   },
   "IsolateBinPath": "/usr/bin/isolate"
 }
@@ -204,19 +204,19 @@ Wrong format
 (!) In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/grader/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually. In other words, the following verdicts **must not** be used by a custom checker. Note that {DEFAULT\_MESSAGE} denotes the default message for the corresponding verdict (see Global Configuration)
 
 ```plaintext
-Time limit exceeded
+Time limit Exceeded
 0
 {DEFAULT_MESSAGE}
 ```
 
 ```plaintext
-Memory limit exceeded
+Memory limit Exceeded
 0
 {DEFAULT_MESSAGE}
 ```
 
 ```plaintext
-Runtime error
+Runtime Error
 0
 {DEFAULT_MESSAGE}
 ```
