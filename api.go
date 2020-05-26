@@ -21,21 +21,11 @@ type gradingRequest struct {
 	Code         []string
 }
 
-func grade(request *gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob, globalConfig *grader.GlobalConfiguration) (*grader.GroupedSubmissionResult, error) {
-	result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, request.Code, ijq, cjq, globalConfig)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
 func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob, globalConfig *grader.GlobalConfiguration) {
 	for {
 		select {
 		case request := <-ch:
-			result, err := grade(&request, ijq, cjq, globalConfig)
+			result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, request.Code, ijq, cjq, globalConfig)
 			if err != nil {
 				// TODO: do something with the error
 				log.Println(err)
