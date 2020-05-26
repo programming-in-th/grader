@@ -7,11 +7,8 @@ import (
 	"os"
 	"path"
 
-	// "cloud.google.com/go/firestore"
-	// firebase "firebase.google.com/go"
 	"github.com/programming-in-th/grader/grader"
 	"github.com/programming-in-th/grader/util"
-	// "google.golang.org/api/option"
 )
 
 type gradingRequest struct {
