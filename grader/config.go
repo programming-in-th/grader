@@ -3,9 +3,12 @@ package grader
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 
 	"github.com/pkg/errors"
 )
+
+var possibleCheckerVerdicts = []string{"Correct", "Partially Correct", "Wrong Answer", "Time Limit Exceeded", "Memory Limit exceeded", "Runtime Error"}
 
 type LangCompileConfiguration struct {
 	ID              string
@@ -27,6 +30,13 @@ func ReadGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
 
 	var globalConfigInstance GlobalConfiguration
 	json.Unmarshal(configFileBytes, &globalConfigInstance)
+
+	// Check that each verdict is present
+	for _, checkerVerdict := range possibleCheckerVerdicts {
+		if _, exists := globalConfigInstance.DefaultMessages[checkerVerdict]; !exists {
+			log.Fatal("Global configuration format incorrect: incomplete parameters")
+		}
+	}
 
 	return &globalConfigInstance, nil
 }

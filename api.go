@@ -10,6 +10,7 @@ import (
 	// "cloud.google.com/go/firestore"
 	// firebase "firebase.google.com/go"
 	"github.com/programming-in-th/grader/grader"
+	"github.com/programming-in-th/grader/util"
 	// "google.golang.org/api/option"
 )
 
@@ -60,17 +61,43 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan gr
 	(*w).Write([]byte("Successfully submission: " + request.SubmissionID))
 }
 
-func initAPI(requestChannel chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob) {
+func initGrader() {
+	_, taskBasePathEnvSet := os.LookupEnv("GRADER_TASK_BASE_PATH")
+	if !taskBasePathEnvSet {
+		log.Fatal("Environment variable GRADER_TASK_BASE_PATH is not set")
+	}
+
+	// Create base tmp path for user binaries and outputs
+	err := util.CreateDirIfNotExist(grader.BASE_TMP_PATH)
+	if err != nil {
+		log.Fatal("Error creating working tmp folder")
+	}
+
+	// Create base tmp path for source files (all submissions)
+	err = util.CreateDirIfNotExist(grader.BASE_SRC_PATH)
+	if err != nil {
+		log.Fatalln("Error initializing API: cannot create base src path")
+	}
+
+	requestChannel := make(chan gradingRequest)
 	globalConfig, err := grader.ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "globalConfig.json"))
 	if err != nil {
 		log.Fatal("Error starting grader")
 	}
+	jobQueueDone := make(chan bool)
+	jobQueue := grader.NewIsolateJobQueue(2, jobQueueDone, globalConfig.IsolateBinPath)
+	checkerJobQueueDone := make(chan bool)
+	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone)
 
 	// Init HTTP Handlers
-	go submissionWorker(requestChannel, ijq, cjq, globalConfig)
+	go submissionWorker(requestChannel, &jobQueue, checkerJobQueue, globalConfig)
 
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, requestChannel)
 	})
 	http.ListenAndServe(":11112", nil) // TODO: set to localhost only
+
+	jobQueueDone <- true
+	checkerJobQueueDone <- true
+	close(requestChannel)
 }
