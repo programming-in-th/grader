@@ -24,6 +24,8 @@ type CheckerJob struct {
 	resultChannel chan checkerResult
 }
 
+var possibleCheckerVerdicts = []string{"Correct", "Partially Correct", "Wrong Answer", "Time Limit Exceeded", "Memory Limit exceeded", "Runtime Error"}
+
 func checkerWorker(q chan CheckerJob, id int, done chan bool) {
 	for {
 		select {
@@ -37,7 +39,16 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool) {
 				continue
 			}
 			outputLines := strings.Split(strings.TrimSpace(string(output)), "\n")
-			if len(outputLines) < 2 || (outputLines[0] != "Correct" && outputLines[0] != "Incorrect") {
+			if len(outputLines) < 2 || len(outputLines) > 3 || !(func(arr []string, targ string) bool {
+				found := false
+				for _, elem := range arr {
+					if elem == targ {
+						found = true
+						break
+					}
+				}
+				return found
+			}(possibleCheckerVerdicts, outputLines[0])) {
 				job.resultChannel <- checkerResult{IEVerdict, 0, errors.New("Checker has invalid output format")}
 				continue
 			}

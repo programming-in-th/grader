@@ -19,7 +19,7 @@ func TestReadManifest(t *testing.T) {
 // Tests whole grading pipeline
 func TestGradeSubmission(t *testing.T) {
 	jobQueueDone := make(chan bool)
-	jobQueue := NewIsolateJobQueue(2, jobQueueDone)
+	jobQueue := NewIsolateJobQueue(2, jobQueueDone, "/usr/bin/isolate")
 	checkerJobQueueDone := make(chan bool)
 	checkerJobQueue := NewCheckerJobQueue(5, checkerJobQueueDone)
 	src := make([]string, 1)
