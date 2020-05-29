@@ -8,8 +8,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-var possibleCheckerVerdicts = []string{"Correct", "Partially Correct", "Wrong Answer", "Time Limit Exceeded", "Memory Limit exceeded", "Runtime Error"}
-
 type LangCompileConfiguration struct {
 	ID              string
 	Extension       string
