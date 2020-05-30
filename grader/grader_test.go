@@ -1,6 +1,7 @@
 package grader
 
 import (
+	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -14,21 +15,23 @@ func TestReadManifest(t *testing.T) {
 		t.Error("Can't read manifest.json\n", err)
 	}
 	t.Log(manifestInstance)
+	t.Log(manifestInstance.DefaultLimits)
 }
 
 // Tests whole grading pipeline
 func TestGradeSubmission(t *testing.T) {
 	src := make([]string, 1)
-	src[0] = "/home/szawinis/testing/rectsum_test.cpp"
-	gc, err := ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "globalConfig.json"))
+	data, err := ioutil.ReadFile("/home/szawinis/testing/rectsum_test.cpp")
+	src[0] = string(data)
+	gc, err := ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "globalConfig.json"))
 	if err != nil {
 		t.Error("Error grading submission: can't read global config")
 	}
 	jobQueueDone := make(chan bool)
-	jobQueue := NewIsolateJobQueue(2, jobQueueDone, "/usr/bin/isolate")
+	jobQueue := NewIsolateJobQueue(1, jobQueueDone, "/usr/bin/isolate")
 	checkerJobQueueDone := make(chan bool)
 	checkerJobQueue := NewCheckerJobQueue(5, checkerJobQueueDone, gc)
-	submissionResult, err := GradeSubmission("submissionID", "rectsum", "cpp", src, &jobQueue, checkerJobQueue, gc)
+	submissionResult, err := GradeSubmission("submissionID", "rectsum", "cpp14", src, &jobQueue, checkerJobQueue, gc)
 	if err != nil {
 		t.Error("Error grading submission")
 	}
@@ -39,7 +42,7 @@ func TestGradeSubmission(t *testing.T) {
 }
 
 func TestCompile(t *testing.T) {
-	gc, err := ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "globalConfig.json"))
+	gc, err := ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "globalConfig.json"))
 	if err != nil {
 		t.Error("Error grading submission: can't read global config")
 	}

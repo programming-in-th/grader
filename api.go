@@ -67,12 +67,12 @@ func initGrader() {
 	}
 
 	requestChannel := make(chan gradingRequest)
-	globalConfig, err := grader.ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "globalConfig.json"))
+	globalConfig, err := grader.ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "globalConfig.json"))
 	if err != nil {
 		log.Fatal("Error starting grader")
 	}
 	jobQueueDone := make(chan bool)
-	jobQueue := grader.NewIsolateJobQueue(2, jobQueueDone, globalConfig.IsolateBinPath)
+	jobQueue := grader.NewIsolateJobQueue(1, jobQueueDone, globalConfig.IsolateBinPath)
 	checkerJobQueueDone := make(chan bool)
 	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone, globalConfig)
 

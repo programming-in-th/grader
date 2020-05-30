@@ -23,7 +23,7 @@ type CheckerJob struct {
 var possibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, TLEVerdict, MLEVerdict, REVerdict, IEVerdict}
 
 func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) {
-	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.FormatInt(int64(testCaseIndex), 10)+".check"))
+	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex)+".check"))
 	if err != nil {
 		log.Fatal("Error during checking. Cannot create .check file")
 	}
@@ -42,7 +42,7 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 			if err != nil {
 				log.Println("Error during checking. Did you chmod +x the checker executable? Checker job:", job)
 				log.Println(err)
-				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+				writeCheckFile(job.submissionID, job.testCaseIndex+1, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
 				job.doneChannel <- true
 				continue
 			}
@@ -57,14 +57,14 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 				}
 				return found
 			}(possibleCheckerVerdicts, outputLines[0])) {
-				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+				writeCheckFile(job.submissionID, job.testCaseIndex+1, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
 				job.doneChannel <- true
 				continue
 			}
 			if len(outputLines) == 2 {
-				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]])
+				writeCheckFile(job.submissionID, job.testCaseIndex+1, outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]])
 			} else {
-				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], outputLines[2])
+				writeCheckFile(job.submissionID, job.testCaseIndex+1, outputLines[0], outputLines[1], outputLines[2])
 			}
 			job.doneChannel <- true
 		case <-done:

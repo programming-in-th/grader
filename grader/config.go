@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
-
-	"github.com/pkg/errors"
 )
 
 type LangCompileConfiguration struct {
@@ -23,7 +21,7 @@ type GlobalConfiguration struct {
 func ReadGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
 	configFileBytes, err := ioutil.ReadFile(globalConfigPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to read global configuration file at %s", globalConfigPath)
+		log.Fatalf("Failed to read global configuration file at %s", globalConfigPath)
 	}
 
 	var globalConfigInstance GlobalConfiguration
