@@ -19,30 +19,27 @@ const BASE_SRC_PATH = BASE_TMP_PATH + "/source"
 
 /* TEST RESULT TYPES */
 
-// RunVerdict denotes the possible verdicts after running, including Correct, WA, TLE, RE and other errors
-// This does not include CE
-// Make sure to not confuse this with isolate.RunVerdict, which although is similar, is completely different
-type RunVerdict string
-
 const (
 	// ACVerdict means the program passed the test
-	ACVerdict RunVerdict = "P"
+	ACVerdict string = "Correct"
 	// PartialVerdict means the program was partially correct on the test
-	PartialVerdict RunVerdict = "~"
+	PartialVerdict string = "Partially Correct"
 	// WAVerdict means the program got the wrong answer on the test
-	WAVerdict RunVerdict = "-"
+	WAVerdict string = "Incorrect"
 	// TLEVerdict means the program timed out
-	TLEVerdict RunVerdict = "T"
-	// REVerdict means the program caused a runtime error (including MLE)
-	REVerdict RunVerdict = "X"
+	TLEVerdict string = "Time Limit Exceeded"
+	// MLEVerdict means the program used too much memory
+	MLEVerdict string = "Memory Limit Exceeded"
+	// REVerdict means the program caused a runtime error (not including MLE)
+	REVerdict string = "Memory Limit Exceeded"
 	// IEVerdict means an internal error of the grader occurred
-	IEVerdict RunVerdict = "?"
+	IEVerdict string = "Judge Error"
 )
 
 // ListedSubmissionResult contains information about the result of a submission
 type ListedSubmissionResult struct {
-	CompileSuccessful bool         // If this is set to false, the other fields will be undefined
-	Verdicts          []RunVerdict // verdicts for each test case in each group
+	CompileSuccessful bool     // If this is set to false, the other fields will be undefined
+	Verdicts          []string // verdicts for each test case in each group
 	Scores            []float64
 	TimeElapsed       []float64 // time elapsed for each test case in each group
 	MemoryUsage       []int     // memory usage for each test case in each group
@@ -50,7 +47,7 @@ type ListedSubmissionResult struct {
 
 // SingleTestResult denotes the metrics for one single test
 type SingleTestResult struct {
-	Verdict     RunVerdict
+	Verdict     string
 	Score       float64
 	TimeElapsed float64
 	MemoryUsage int
@@ -161,72 +158,58 @@ func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID s
 	return testResults
 }
 
-func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *problemManifest, submissionID string, cjq chan CheckerJob) []SingleTestResult {
+func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *problemManifest, submissionID string, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) {
 	// Compile final submission results
 	var wg sync.WaitGroup
 	wg.Add(len(testResults))
 
-	result := make([]SingleTestResult, 0)
 	for i := 0; i < len(testResults); i++ {
-		var currResult SingleTestResult
 
+		// TODO: Write to check file instead
 		if testResults[i].verdict == isolate.IsolateRunXX || testResults[i].verdict == isolate.IsolateRunOther {
-			currResult.Verdict = IEVerdict
-			currResult.TimeElapsed = 0
-			currResult.MemoryUsage = 0
-			currResult.Score = 0
+			writeCheckFile(submissionID, i, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
 			if testResults[i].err != nil {
 				log.Println(testResults[i].err)
 			}
-			result = append(result, currResult)
 			continue
 		}
 
-		currResult.TimeElapsed = testResults[i].metrics.TimeElapsed
-		currResult.MemoryUsage = testResults[i].metrics.MemoryUsage
 		if testResults[i].verdict != isolate.IsolateRunOK {
-			if testResults[i].verdict == isolate.IsolateRunMLE || testResults[i].verdict == isolate.IsolateRunRE {
-				currResult.Verdict = REVerdict
-				currResult.Score = 0
+			if testResults[i].verdict == isolate.IsolateRunMLE {
+				writeCheckFile(submissionID, i, MLEVerdict, "0", globalConfigInstance.DefaultMessages[MLEVerdict])
+			} else if testResults[i].verdict == isolate.IsolateRunRE {
+				writeCheckFile(submissionID, i, REVerdict, "0", globalConfigInstance.DefaultMessages[REVerdict])
 			} else if testResults[i].verdict == isolate.IsolateRunTLE {
-				currResult.Verdict = TLEVerdict
-				currResult.Score = 0
+				writeCheckFile(submissionID, i, TLEVerdict, "0", globalConfigInstance.DefaultMessages[TLEVerdict])
+			} else {
+				writeCheckFile(submissionID, i, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
 			}
-			result = append(result, currResult)
 			continue
 		} else {
 			// Get outputs from checker to determine verdict
 			go func(i int) {
-				ch := make(chan checkerResult)
+				doneChannel := make(chan bool)
 				defer func() {
-					close(ch)
+					close(doneChannel)
 					wg.Done()
 				}()
 				job := CheckerJob{
+					submissionID,
+					i,
+					// TODO: modify this for custom/default
 					path.Join(manifestInstance.taskBasePath, "checker"),
 					path.Join(manifestInstance.inputsBasePath, manifestInstance.TestInputs[i]),
 					path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(i)+".out"),
 					path.Join(manifestInstance.solutionsBasePath, manifestInstance.TestSolutions[i]),
-					ch,
+					doneChannel,
 				}
 				cjq <- job
-				checkedResults := <-ch
-				if checkedResults.verdict == IEVerdict {
-					log.Println(checkedResults.err)
-					currResult.Verdict = IEVerdict
-					currResult.Score = 0
-				} else {
-					currResult.Verdict = checkedResults.verdict
-					currResult.Score = checkedResults.score
-				}
-				result = append(result, currResult)
+				<-doneChannel
 			}(i)
 		}
 	}
 
 	wg.Wait()
-
-	return result
 }
 
 func groupIndividualResults(checkerResults []SingleTestResult, groups []TestGroup) *GroupedSubmissionResult {
@@ -268,7 +251,6 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 	// Copy source code into tmp directory
 	srcFilePaths := make([]string, len(code))
 	for i := 0; i < len(code); i++ {
-		// TODO: get rid of request.TargLang
 		srcFilePaths[i] = path.Join(BASE_SRC_PATH, submissionID+"_"+strconv.Itoa(i)+"."+langConfig.Extension)
 		err := ioutil.WriteFile(srcFilePaths[i], []byte(code[i]), 0644)
 		if err != nil {
@@ -331,17 +313,17 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		// TODO: support more than one file. For now, just move the one file into the user_bin directory
 	}
 
+	// Remove user output file to not clutter up disk
+	defer func() {
+		os.RemoveAll(path.Join(BASE_TMP_PATH, submissionID))
+		os.Remove(userBinPath)
+	}()
+
 	isolateResults := waitForIsolateTestResults(manifestInstance, submissionID, userBinPath, ijq)
 	log.Println("Isolate test case results:", isolateResults)
-	checkerResults := waitForCheckerResults(isolateResults, manifestInstance, submissionID, cjq)
-	log.Println("Individual test case results:", checkerResults)
-	finalResults := groupIndividualResults(checkerResults, manifestInstance.Groups)
+	waitForCheckerResults(isolateResults, manifestInstance, submissionID, cjq, globalConfigInstance)
 
-	// Remove user output file to not clutter up disk
-	for i := 0; i < len(manifestInstance.TestInputs); i++ {
-		os.Remove(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(i)+".out"))
-	}
-	os.Remove(userBinPath)
+	// TODO: group results
 
-	return finalResults, nil
+	return nil, nil
 }

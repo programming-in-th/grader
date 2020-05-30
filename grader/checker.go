@@ -2,31 +2,38 @@ package grader
 
 import (
 	"log"
+	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/pkg/errors"
 )
 
-type checkerResult struct {
-	verdict RunVerdict
-	score   float64
-	err     error
-}
-
 type CheckerJob struct {
+	submissionID  string
+	testCaseIndex int
 	checkerPath   string
 	inputPath     string
 	outputPath    string
 	solutionPath  string
-	resultChannel chan checkerResult
+	doneChannel   chan bool
 }
 
-var possibleCheckerVerdicts = []string{"Correct", "Partially Correct", "Wrong Answer", "Time Limit Exceeded", "Memory Limit exceeded", "Runtime Error"}
+var possibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, TLEVerdict, MLEVerdict, REVerdict, IEVerdict}
 
-func checkerWorker(q chan CheckerJob, id int, done chan bool) {
+func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) {
+	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.FormatInt(int64(testCaseIndex), 10)+".check"))
+	if err != nil {
+		log.Fatal("Error during checking. Cannot create .check file")
+	}
+	_, err = checkerFile.WriteString(verdict + "\n" + score + "\n" + message)
+	if err != nil {
+		log.Fatal("Error during checking. Cannot write to .check file")
+	}
+}
+
+func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstance *GlobalConfiguration) {
 	for {
 		select {
 		case job := <-q:
@@ -35,7 +42,8 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool) {
 			if err != nil {
 				log.Println("Error during checking. Did you chmod +x the checker executable? Checker job:", job)
 				log.Println(err)
-				job.resultChannel <- checkerResult{score: 0, err: err}
+				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+				job.doneChannel <- true
 				continue
 			}
 			outputLines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -49,26 +57,23 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool) {
 				}
 				return found
 			}(possibleCheckerVerdicts, outputLines[0])) {
-				job.resultChannel <- checkerResult{IEVerdict, 0, errors.New("Checker has invalid output format")}
+				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+				job.doneChannel <- true
 				continue
 			}
-			score, err := strconv.ParseFloat(outputLines[1], 64)
-			if err != nil {
-				job.resultChannel <- checkerResult{IEVerdict, 0, errors.New("Checker has invalid output format")}
-				continue
-			}
-			if outputLines[0] == "Correct" {
-				job.resultChannel <- checkerResult{ACVerdict, score, nil}
+			if len(outputLines) == 2 {
+				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]])
 			} else {
-				job.resultChannel <- checkerResult{WAVerdict, score, nil}
+				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], outputLines[2])
 			}
+			job.doneChannel <- true
 		case <-done:
 			break
 		}
 	}
 }
 
-func NewCheckerJobQueue(maxWorkers int, done chan bool) chan CheckerJob {
+func NewCheckerJobQueue(maxWorkers int, done chan bool, globalConfigInstance *GlobalConfiguration) chan CheckerJob {
 	ch := make(chan CheckerJob)
 	var wg sync.WaitGroup
 
@@ -80,7 +85,7 @@ func NewCheckerJobQueue(maxWorkers int, done chan bool) chan CheckerJob {
 	wg.Add(maxWorkers)
 	for i := 0; i < maxWorkers; i++ {
 		go func(i int) {
-			checkerWorker(ch, i, done)
+			checkerWorker(ch, i, done, globalConfigInstance)
 			wg.Done()
 		}(i)
 	}

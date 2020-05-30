@@ -74,7 +74,7 @@ func initGrader() {
 	jobQueueDone := make(chan bool)
 	jobQueue := grader.NewIsolateJobQueue(2, jobQueueDone, globalConfig.IsolateBinPath)
 	checkerJobQueueDone := make(chan bool)
-	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone)
+	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone, globalConfig)
 
 	// Init HTTP Handlers
 	go submissionWorker(requestChannel, &jobQueue, checkerJobQueue, globalConfig)
