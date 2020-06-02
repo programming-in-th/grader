@@ -4,6 +4,8 @@ import (
 	"log"
 	"os/exec"
 	"path"
+
+	"github.com/pkg/errors"
 )
 
 // Compiles user source into one file according to arguments in manifest.json
@@ -27,7 +29,7 @@ func compileSubmission(submissionID string, problemID string, sourceFilePaths []
 	}
 	err := exec.Command(compileCommands[0], compileCommands[1:]...).Run()
 	if err != nil {
-		log.Println("Compile error. Make sure source files are valid paths and manifest.json is using absolute paths only\n", err)
+		log.Println(errors.Wrap(err, "Compile error. Make sure source files are valid paths and manifest.json is using absolute paths only"))
 		log.Println("Compile commands:", compileCommands)
 		return false, ""
 	}

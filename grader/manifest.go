@@ -263,11 +263,11 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 
 	langConfig := getLangCompileConfig(globalConfigInstance, targLang)
 	if langConfig == nil {
-		return &GroupedSubmissionResult{CompileSuccessful: false}, nil
+		return &GroupedSubmissionResult{CompileSuccessful: false}, errors.New("Language not supported")
 	}
 
 	if len(code) == 0 {
-		return &GroupedSubmissionResult{CompileSuccessful: false}, nil
+		return &GroupedSubmissionResult{CompileSuccessful: false}, errors.New("Code passed in is empty")
 	}
 
 	// Copy source code into tmp directory
@@ -276,8 +276,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		srcFilePaths[i] = path.Join(BASE_SRC_PATH, submissionID+"_"+strconv.Itoa(i)+"."+langConfig.Extension)
 		err := ioutil.WriteFile(srcFilePaths[i], []byte(code[i]), 0644)
 		if err != nil {
-			log.Println("Cannot copy source code into tmp directory:", srcFilePaths[i])
-			return nil, errors.Wrap(err, "Cannot copy source code into tmp directory")
+			return &GroupedSubmissionResult{CompileSuccessful: false}, errors.Wrapf(err, "Cannot copy source code into tmp directory: %s", srcFilePaths[i])
 		}
 	}
 
@@ -292,13 +291,13 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error reading manifest file")
+		return &GroupedSubmissionResult{CompileSuccessful: false}, errors.Wrap(err, "Error reading manifest file")
 	}
 
 	// Create tmp directory for submission
 	err = util.CreateDirIfNotExist(path.Join(BASE_TMP_PATH, submissionID))
 	if err != nil {
-		return nil, errors.Wrap(err, "Error creating working tmp folder")
+		return &GroupedSubmissionResult{CompileSuccessful: false}, errors.Wrap(err, "Error creating working tmp folder")
 	}
 
 	// Check if target language is supported
@@ -315,9 +314,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		}
 	}
 	if !langSupportContainsTargLang {
-		log.Println("no lang support")
-		log.Println("targLang:", targLang)
-		return nil, errors.New("Error in grading submission: language not supported")
+		return &GroupedSubmissionResult{CompileSuccessful: false}, errors.New("Language not supported")
 	}
 
 	// Add compile files to srcFilePaths after defer statement so it doesn't delete
@@ -339,7 +336,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		}
 	} else {
 		if len(srcFilePaths) > 1 {
-			log.Fatal("Grader does not support more than one source file for interpreted languages")
+			return &GroupedSubmissionResult{CompileSuccessful: false}, errors.New("Language not supported")
 		}
 		err := os.Rename(srcFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
 		if err != nil {

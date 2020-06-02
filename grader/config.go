@@ -3,7 +3,8 @@ package grader
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
+
+	"github.com/pkg/errors"
 )
 
 type LangCompileConfiguration struct {
@@ -21,7 +22,7 @@ type GlobalConfiguration struct {
 func ReadGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
 	configFileBytes, err := ioutil.ReadFile(globalConfigPath)
 	if err != nil {
-		log.Fatalf("Failed to read global configuration file at %s", globalConfigPath)
+		return nil, errors.Wrapf(err, "Failed to read global configuration file at %s", globalConfigPath)
 	}
 
 	var globalConfigInstance GlobalConfiguration
@@ -30,7 +31,7 @@ func ReadGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
 	// Check that each verdict is present
 	for _, checkerVerdict := range possibleCheckerVerdicts {
 		if _, exists := globalConfigInstance.DefaultMessages[checkerVerdict]; !exists {
-			log.Fatal("Global configuration format incorrect: incomplete parameters")
+			return nil, errors.Wrap(err, "Global configuration format incorrect: incomplete parameters")
 		}
 	}
 

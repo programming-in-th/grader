@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 type CheckerJob struct {
@@ -22,7 +24,7 @@ type CheckerJob struct {
 
 var possibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, TLEVerdict, MLEVerdict, REVerdict, IEVerdict}
 
-func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) {
+func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) error {
 	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex)+".check"))
 	if err != nil {
 		log.Fatal("Error during checking. Cannot create .check file")
@@ -31,6 +33,7 @@ func writeCheckFile(submissionID string, testCaseIndex int, verdict string, scor
 	if err != nil {
 		log.Fatal("Error during checking. Cannot write to .check file")
 	}
+	return nil
 }
 
 func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstance *GlobalConfiguration) {
@@ -40,8 +43,7 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 			// Arguments: [path to checker binary, path to input file, path to user's produced output file, path to solution output (for checkers that diff)]
 			output, err := exec.Command(job.checkerPath, job.inputPath, job.outputPath, job.solutionPath).Output()
 			if err != nil {
-				log.Println("Error during checking. Did you chmod +x the checker executable? Checker job:", job)
-				log.Println(err)
+				log.Fatal(errors.Wrapf(err, "Error during checking. Did you chmod +x the checker executable? Checker job: %#v", job))
 				writeCheckFile(job.submissionID, job.testCaseIndex+1, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
 				job.doneChannel <- true
 				continue
