@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"sync"
@@ -361,9 +362,21 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		} else {
 			grouperPath = path.Join(manifestInstance.taskBasePath, "grouper")
 		}
-		log.Println(grouperPath)
-		// TODO: group results
+
+		// TODO: use same worker model as isolate and checker?
+		grouperOutput, err := exec.Command(grouperPath, strconv.FormatFloat(manifestInstance.Groups[i].FullScore, 'E', -1, 64), strconv.Itoa(manifestInstance.Groups[i].TestIndices.Start+1), strconv.Itoa(manifestInstance.Groups[i].TestIndices.End)).Output()
+		if err != nil {
+			// TODO: gracefully handle this with API
+			log.Fatalf("Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID)
+		}
+		score, err := strconv.ParseFloat(string(grouperOutput), 64)
+		if err != nil {
+			// TODO: gracefully handle this with API
+			log.Fatalf("Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID)
+		}
+		currGroupResult.Score = score
+		groupResults.GroupResults = append(groupResults.GroupResults, currGroupResult)
 	}
 
-	return nil, nil
+	return &groupResults, nil
 }
