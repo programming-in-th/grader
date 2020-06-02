@@ -35,5 +35,16 @@ func ReadGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
 		}
 	}
 
+	// Fill blanks for verdicts not specified
+	if _, exists := globalConfigInstance.DefaultMessages[TLEVerdict]; !exists {
+		globalConfigInstance.DefaultMessages[TLEVerdict] = ""
+	}
+	if _, exists := globalConfigInstance.DefaultMessages[MLEVerdict]; !exists {
+		globalConfigInstance.DefaultMessages[MLEVerdict] = ""
+	}
+	if _, exists := globalConfigInstance.DefaultMessages[REVerdict]; !exists {
+		globalConfigInstance.DefaultMessages[REVerdict] = ""
+	}
+
 	return &globalConfigInstance, nil
 }

@@ -19,13 +19,19 @@ type CheckerJob struct {
 	inputPath     string
 	outputPath    string
 	solutionPath  string
-	doneChannel   chan bool
+	resultChannel chan checkerResult
 }
 
-var possibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, TLEVerdict, MLEVerdict, REVerdict, IEVerdict}
+type checkerResult struct {
+	verdict string
+	score   string
+	message string
+}
+
+var possibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, IEVerdict}
 
 func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) error {
-	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex)+".check"))
+	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex+1)+".check"))
 	if err != nil {
 		log.Fatal("Error during checking. Cannot create .check file")
 	}
@@ -44,8 +50,8 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 			output, err := exec.Command(job.checkerPath, job.inputPath, job.outputPath, job.solutionPath).Output()
 			if err != nil {
 				log.Fatal(errors.Wrapf(err, "Error during checking. Did you chmod +x the checker executable? Checker job: %#v", job))
-				writeCheckFile(job.submissionID, job.testCaseIndex+1, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-				job.doneChannel <- true
+				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+				job.resultChannel <- checkerResult{IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict]}
 				continue
 			}
 			outputLines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -59,16 +65,17 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 				}
 				return found
 			}(possibleCheckerVerdicts, outputLines[0])) {
-				writeCheckFile(job.submissionID, job.testCaseIndex+1, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-				job.doneChannel <- true
+				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+				job.resultChannel <- checkerResult{IEVerdict, "0", ""}
 				continue
 			}
 			if len(outputLines) == 2 {
-				writeCheckFile(job.submissionID, job.testCaseIndex+1, outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]])
+				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]])
+				job.resultChannel <- checkerResult{outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]]}
 			} else {
-				writeCheckFile(job.submissionID, job.testCaseIndex+1, outputLines[0], outputLines[1], outputLines[2])
+				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], outputLines[2])
+				job.resultChannel <- checkerResult{outputLines[0], outputLines[1], outputLines[2]}
 			}
-			job.doneChannel <- true
 		case <-done:
 			break
 		}

@@ -34,6 +34,8 @@ const (
 	REVerdict string = "Memory Limit Exceeded"
 	// IEVerdict means an internal error of the grader occurred
 	IEVerdict string = "Judge Error"
+	// SKVerdict means the test was skipped because a dependent group was not passed
+	SKVerdict string = "Skipped"
 )
 
 // ListedSubmissionResult contains information about the result of a submission
@@ -48,9 +50,10 @@ type ListedSubmissionResult struct {
 // SingleTestResult denotes the metrics for one single test
 type SingleTestResult struct {
 	Verdict     string
-	Score       float64
+	Score       string
 	TimeElapsed float64
 	MemoryUsage int
+	Message     string
 }
 
 // SingleGroupResults denotes the metrics for one single group (comprised of many tests)
@@ -125,6 +128,15 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	var manifestInstance problemManifest
 	json.Unmarshal(manifestFileBytes, &manifestInstance)
 
+	// Decrease indices for easier handling
+	for i := 0; i < len(manifestInstance.Groups); i++ {
+		for j := 0; j < len(manifestInstance.Groups[i].Dependencies); j++ {
+			manifestInstance.Groups[i].Dependencies[j] -= 1
+		}
+		manifestInstance.Groups[i].TestIndices.Start -= 1
+		// Leave .End as is because we want it to be exclusive
+	}
+
 	manifestInstance.taskBasePath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", manifestInstance.ID)
 	manifestInstance.inputsBasePath = path.Join(manifestInstance.taskBasePath, "inputs")
 	manifestInstance.solutionsBasePath = path.Join(manifestInstance.taskBasePath, "solutions")
@@ -133,128 +145,84 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	return &manifestInstance, nil
 }
 
-func waitForIsolateTestResults(manifestInstance *problemManifest, submissionID string, targLang string, userBinPath string, q *IsolateJobQueue) []isolateTestResult {
-	// For each test case, run in isolate and send to checker
-	testResults := make([]isolateTestResult, manifestInstance.numTests)
-	var wg sync.WaitGroup
-	wg.Add(manifestInstance.numTests)
+func waitForTestResult(manifestInstance *problemManifest, submissionID string, targLang string, userBinPath string, testIndex int, q *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*SingleTestResult, error) {
+	// Initialize channels for parallel judging
+	isolateResultChannel := make(chan isolateTestResult)
+	checkerChannel := make(chan checkerResult)
+	defer func() {
+		close(isolateResultChannel)
+		close(checkerChannel)
+	}()
 
-	for i := 0; i < len(testResults); i++ {
-		go func(i int) {
-			ch := make(chan isolateTestResult)
-			defer func() {
-				close(ch)
-				wg.Done()
-			}()
-			var timeLimit float64
-			var memoryLimit int
-			if limits, exists := manifestInstance.Limits[targLang]; exists {
-				timeLimit = limits.TimeLimit
-				memoryLimit = limits.MemoryLimit * 1000 // Convert to KB
-			} else {
-				timeLimit = manifestInstance.DefaultLimits.TimeLimit
-				memoryLimit = manifestInstance.DefaultLimits.MemoryLimit * 1000
-			}
-			job := isolateJob{
-				userBinPath,
-				timeLimit,
-				memoryLimit,
-				path.Join(manifestInstance.inputsBasePath, strconv.Itoa(i+1)+".in"),
-				path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(i+1)+".out"),
-				ch,
-			}
-			log.Println("Pushing job into job queue:")
-			log.Println(job)
-			q.q <- job
-			testResults[i] = <-ch
-		}(i)
+	// Dispatch job to an isolate worker
+	var timeLimit float64
+	var memoryLimit int
+	if limits, exists := manifestInstance.Limits[targLang]; exists {
+		timeLimit = limits.TimeLimit
+		memoryLimit = limits.MemoryLimit * 1000 // Convert to KB
+	} else {
+		timeLimit = manifestInstance.DefaultLimits.TimeLimit
+		memoryLimit = manifestInstance.DefaultLimits.MemoryLimit * 1000
+	}
+	job := isolateJob{
+		userBinPath,
+		timeLimit,
+		memoryLimit,
+		path.Join(manifestInstance.inputsBasePath, strconv.Itoa(testIndex+1)+".in"),
+		path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testIndex+1)+".out"),
+		isolateResultChannel,
+	}
+	log.Println("Pushing job into job queue:")
+	log.Println(job)
+	q.q <- job
+
+	// Wait for isolate worker to finish
+	isolateResult := <-isolateResultChannel
+
+	// Check for fatal errors first and return corresponding results without running checker
+	if isolateResult.verdict == isolate.IsolateRunXX || isolateResult.verdict == isolate.IsolateRunOther {
+		writeCheckFile(submissionID, testIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+		return &SingleTestResult{IEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[IEVerdict]}, isolateResult.err
 	}
 
-	// Need to wait first for all isolate runs to complete first, or else checker can attempt to read non-existent output files
-	wg.Wait()
-	return testResults
-}
-
-func waitForCheckerResults(testResults []isolateTestResult, manifestInstance *problemManifest, submissionID string, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) {
-	// Compile final submission results
-	var wg sync.WaitGroup
-	wg.Add(len(testResults))
-
-	for i := 0; i < len(testResults); i++ {
-
-		// TODO: Write to check file instead
-		if testResults[i].verdict == isolate.IsolateRunXX || testResults[i].verdict == isolate.IsolateRunOther {
-			writeCheckFile(submissionID, i+1, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-			if testResults[i].err != nil {
-				log.Println(testResults[i].err)
-			}
-			continue
-		}
-
-		if testResults[i].verdict != isolate.IsolateRunOK {
-			if testResults[i].verdict == isolate.IsolateRunMLE {
-				writeCheckFile(submissionID, i+1, MLEVerdict, "0", globalConfigInstance.DefaultMessages[MLEVerdict])
-			} else if testResults[i].verdict == isolate.IsolateRunRE {
-				writeCheckFile(submissionID, i+1, REVerdict, "0", globalConfigInstance.DefaultMessages[REVerdict])
-			} else if testResults[i].verdict == isolate.IsolateRunTLE {
-				writeCheckFile(submissionID, i+1, TLEVerdict, "0", globalConfigInstance.DefaultMessages[TLEVerdict])
-			} else {
-				writeCheckFile(submissionID, i+1, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-			}
-			continue
+	if isolateResult.verdict != isolate.IsolateRunOK {
+		if isolateResult.verdict == isolate.IsolateRunMLE {
+			writeCheckFile(submissionID, testIndex, MLEVerdict, "0", globalConfigInstance.DefaultMessages[MLEVerdict])
+			return &SingleTestResult{MLEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[MLEVerdict]}, nil
+		} else if isolateResult.verdict == isolate.IsolateRunRE {
+			writeCheckFile(submissionID, testIndex, REVerdict, "0", globalConfigInstance.DefaultMessages[REVerdict])
+			return &SingleTestResult{REVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[REVerdict]}, nil
+		} else if isolateResult.verdict == isolate.IsolateRunTLE {
+			writeCheckFile(submissionID, testIndex, TLEVerdict, "0", globalConfigInstance.DefaultMessages[TLEVerdict])
+			return &SingleTestResult{TLEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[TLEVerdict]}, nil
 		} else {
-			// Get outputs from checker to determine verdict
-			go func(i int) {
-				doneChannel := make(chan bool)
-				defer func() {
-					close(doneChannel)
-					wg.Done()
-				}()
-				var checkerPath string
-				if manifestInstance.Checker != "custom" {
-					checkerPath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "defaultCheckers", manifestInstance.Checker)
-				} else {
-					checkerPath = path.Join(manifestInstance.taskBasePath, "checker")
-				}
-				job := CheckerJob{
-					submissionID,
-					i,
-					checkerPath,
-					path.Join(manifestInstance.inputsBasePath, strconv.Itoa(i+1)+".in"),
-					path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(i+1)+".out"),
-					path.Join(manifestInstance.solutionsBasePath, strconv.Itoa(i+1)+".sol"),
-					doneChannel,
-				}
-				cjq <- job
-				<-doneChannel
-			}(i)
+			writeCheckFile(submissionID, testIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
+			return &SingleTestResult{IEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[IEVerdict]}, nil
 		}
+	} else {
+		// Assuming the verdict is isolate.IsolateRunOK, we run the checker
+		var checkerPath string
+		if manifestInstance.Checker != "custom" {
+			checkerPath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "defaultCheckers", manifestInstance.Checker)
+		} else {
+			checkerPath = path.Join(manifestInstance.taskBasePath, "checker")
+		}
+		job := CheckerJob{
+			submissionID,
+			testIndex,
+			checkerPath,
+			path.Join(manifestInstance.inputsBasePath, strconv.Itoa(testIndex+1)+".in"),
+			path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testIndex+1)+".out"),
+			path.Join(manifestInstance.solutionsBasePath, strconv.Itoa(testIndex+1)+".sol"),
+			checkerChannel,
+		}
+		cjq <- job
+
+		// Wait for checker to finish
+		result := <-checkerChannel
+
+		return &SingleTestResult{result.verdict, result.score, isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, result.message}, nil
 	}
-
-	wg.Wait()
-}
-
-func groupIndividualResults(checkerResults []SingleTestResult, groups []TestGroup) *GroupedSubmissionResult {
-	finalResults := GroupedSubmissionResult{CompileSuccessful: true}
-
-	for _, testGroup := range groups {
-		groupResult := SingleGroupResult{
-			Score:       -1,
-			TestResults: make([]SingleTestResult, testGroup.TestIndices.End-testGroup.TestIndices.Start),
-		}
-		i := 0
-		for j := testGroup.TestIndices.Start; j < testGroup.TestIndices.End; j++ {
-			groupResult.TestResults[i] = checkerResults[j]
-			if groupResult.Score == -1 || checkerResults[j].Score < groupResult.Score {
-				groupResult.Score = checkerResults[j].Score
-			}
-			i++
-		}
-		// Scale score from checker (out of 100) by full score of group
-		groupResult.Score = 1.0 * groupResult.Score * testGroup.FullScore / 100
-		finalResults.GroupResults = append(finalResults.GroupResults, groupResult)
-	}
-	return &finalResults
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a problem to be judged
@@ -351,11 +319,51 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		os.Remove(userBinPath)
 	}()
 
-	isolateResults := waitForIsolateTestResults(manifestInstance, submissionID, targLang, userBinPath, ijq)
-	log.Println("Isolate test case results:", isolateResults)
-	waitForCheckerResults(isolateResults, manifestInstance, submissionID, cjq, globalConfigInstance)
+	groupResults := GroupedSubmissionResult{CompileSuccessful: true}
+	for i := 0; i < len(manifestInstance.Groups); i++ {
 
-	// TODO: group results
+		// If a dependency is not satisfied, skip the entire group
+		foundInvalid := false
+		numTests := manifestInstance.Groups[i].TestIndices.End - manifestInstance.Groups[i].TestIndices.Start
+		for _, j := range manifestInstance.Groups[i].Dependencies {
+			if groupResults.GroupResults[j].Score == 0 {
+				foundInvalid = true
+				break
+			}
+		}
+		if foundInvalid {
+			groupResults.GroupResults[i].Score = 0
+			for j := 0; j < numTests; j++ {
+				groupResults.GroupResults[i].TestResults[j] = SingleTestResult{SKVerdict, "0", 0, 0, ""}
+			}
+			continue
+		}
+
+		// Otherwise, judge all tests within that group
+		var wg sync.WaitGroup
+		wg.Add(numTests)
+		currGroupResult := SingleGroupResult{Score: -1, TestResults: make([]SingleTestResult, 0)}
+		for testIndex := manifestInstance.Groups[i].TestIndices.Start; testIndex < manifestInstance.Groups[i].TestIndices.End; testIndex++ {
+			go func(idx int) {
+				currResult, err := waitForTestResult(manifestInstance, submissionID, targLang, userBinPath, idx, ijq, cjq, globalConfigInstance)
+				if err != nil {
+					log.Println(errors.Wrapf(err, "Error while judging submission %s at test %d", submissionID, idx))
+				}
+				currGroupResult.TestResults = append(currGroupResult.TestResults, *currResult)
+				wg.Done()
+			}(testIndex)
+		}
+
+		// Run grouper
+		var grouperPath string
+		if manifestInstance.Grouper != "custom" {
+			grouperPath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "defaultGroupers", manifestInstance.Grouper)
+		} else {
+			grouperPath = path.Join(manifestInstance.taskBasePath, "grouper")
+		}
+		log.Println(grouperPath)
+		// TODO: group results
+	}
 
 	return nil, nil
 }
