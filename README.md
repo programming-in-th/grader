@@ -232,9 +232,10 @@ Judging Error
 The grouper script's role is to gather individual scores and verdicts from the checker to determine the score on a test group. Note that the grouper does not handle dependencies between test groups, as that is already handled automatically by the grader via manifest.json. Hence, the grouper will run once per test group. Note that we provide some groupers for normal use cases, but you may decide to write your own grouper if you need more sophisticated custom functionality.
 
 The grouper must accept three command line arguments (excluding the name of the grouper itself):
-1. A floating-point number indicating the maximum score of the test group
-2. An integer indicating the starting test index of the test group (1-indexed)
-3. An integer indicating the ending (inclusive) test index of the test group (1-indexed)
+1. A string indicating the current submission ID (used for locating the .check files in /tmp/grader/{submissionID})
+2. A floating-point number indicating the maximum score of the test group
+3. An integer indicating the starting test index of the test group (1-indexed)
+4. An integer indicating the ending (inclusive) test index of the test group (1-indexed)
 
 The grouper must then print the score of the test group to standard output as a floating point number.
 
