@@ -364,7 +364,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		}
 
 		// TODO: use same worker model as isolate and checker?
-		grouperOutput, err := exec.Command(grouperPath, strconv.FormatFloat(manifestInstance.Groups[i].FullScore, 'E', -1, 64), strconv.Itoa(manifestInstance.Groups[i].TestIndices.Start+1), strconv.Itoa(manifestInstance.Groups[i].TestIndices.End)).Output()
+		grouperOutput, err := exec.Command(grouperPath, strconv.FormatFloat(manifestInstance.Groups[i].FullScore, 'E', -1, 64), strconv.Itoa(manifestInstance.Groups[i].TestIndices.Start+1), strconv.Itoa(manifestInstance.Groups[i].TestIndices.End), submissionID).Output()
 		if err != nil {
 			log.Printf("Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID)
 			groupResults.GroupedSuccessful = false
