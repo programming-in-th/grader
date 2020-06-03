@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -65,6 +66,7 @@ type SingleGroupResult struct {
 
 // GroupedSubmissionResult denotes the test results for all groups
 type GroupedSubmissionResult struct {
+	CompileSuccessful bool
 	GroupedSuccessful bool
 	GroupResults      []SingleGroupResult
 }
@@ -232,11 +234,11 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 
 	langConfig := getLangCompileConfig(globalConfigInstance, targLang)
 	if langConfig == nil {
-		return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.New("Language not supported")
+		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Language not supported")
 	}
 
 	if len(code) == 0 {
-		return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.New("Code passed in is empty")
+		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Code passed in is empty")
 	}
 
 	// Copy source code into tmp directory
@@ -245,7 +247,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		srcFilePaths[i] = path.Join(BASE_SRC_PATH, submissionID+"_"+strconv.Itoa(i)+"."+langConfig.Extension)
 		err := ioutil.WriteFile(srcFilePaths[i], []byte(code[i]), 0644)
 		if err != nil {
-			return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.Wrapf(err, "Cannot copy source code into tmp directory: %s", srcFilePaths[i])
+			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrapf(err, "Cannot copy source code into tmp directory: %s", srcFilePaths[i])
 		}
 	}
 
@@ -260,13 +262,13 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
 	if err != nil {
-		return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.Wrap(err, "Error reading manifest file")
+		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Error reading manifest file")
 	}
 
 	// Create tmp directory for submission
 	err = util.CreateDirIfNotExist(path.Join(BASE_TMP_PATH, submissionID))
 	if err != nil {
-		return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.Wrap(err, "Error creating working tmp folder")
+		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Error creating working tmp folder")
 	}
 
 	// Check if target language is supported
@@ -283,7 +285,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		}
 	}
 	if !langSupportContainsTargLang {
-		return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.New("Language not supported")
+		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Language not supported")
 	}
 
 	// Add compile files to srcFilePaths after defer statement so it doesn't delete
@@ -301,15 +303,15 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		var compileSuccessful bool
 		compileSuccessful, userBinPath = compileSubmission(submissionID, problemID, srcFilePaths, langConfig.CompileCommands)
 		if !compileSuccessful {
-			return &GroupedSubmissionResult{GroupedSuccessful: false}, nil
+			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, nil
 		}
 	} else {
 		if len(srcFilePaths) > 1 {
-			return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.New("Language not supported")
+			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Language not supported")
 		}
 		err := os.Rename(srcFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
 		if err != nil {
-			return &GroupedSubmissionResult{GroupedSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
+			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
 		}
 		// TODO: support more than one file. For now, just move the one file into the user_bin directory
 	}
@@ -320,30 +322,34 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		os.Remove(userBinPath)
 	}()
 
-	groupResults := GroupedSubmissionResult{GroupedSuccessful: true}
+	log.Printf("%#v", manifestInstance.Groups)
+
+	groupResults := GroupedSubmissionResult{CompileSuccessful: true, GroupedSuccessful: true}
 	for i := 0; i < len(manifestInstance.Groups); i++ {
+
+		currGroupResult := SingleGroupResult{Score: -1, TestResults: make([]SingleTestResult, 0)}
 
 		// If a dependency is not satisfied, skip the entire group
 		foundInvalid := false
 		numTests := manifestInstance.Groups[i].TestIndices.End - manifestInstance.Groups[i].TestIndices.Start
 		for _, j := range manifestInstance.Groups[i].Dependencies {
-			if groupResults.GroupResults[j].Score == 0 {
+			if !groupResults.GroupedSuccessful || groupResults.GroupResults[j].Score == 0 {
 				foundInvalid = true
 				break
 			}
 		}
 		if foundInvalid {
-			groupResults.GroupResults[i].Score = 0
+			currGroupResult.Score = 0
 			for j := 0; j < numTests; j++ {
-				groupResults.GroupResults[i].TestResults[j] = SingleTestResult{SKVerdict, "0", 0, 0, ""}
+				currGroupResult.TestResults = append(currGroupResult.TestResults, SingleTestResult{SKVerdict, "0", 0, 0, ""})
 			}
+			groupResults.GroupResults = append(groupResults.GroupResults, currGroupResult)
 			continue
 		}
 
 		// Otherwise, judge all tests within that group
 		var wg sync.WaitGroup
 		wg.Add(numTests)
-		currGroupResult := SingleGroupResult{Score: -1, TestResults: make([]SingleTestResult, 0)}
 		for testIndex := manifestInstance.Groups[i].TestIndices.Start; testIndex < manifestInstance.Groups[i].TestIndices.End; testIndex++ {
 			go func(idx int) {
 				currResult, err := waitForTestResult(manifestInstance, submissionID, targLang, userBinPath, idx, ijq, cjq, globalConfigInstance)
@@ -354,6 +360,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 				wg.Done()
 			}(testIndex)
 		}
+		wg.Wait()
 
 		// Run grouper
 		var grouperPath string
@@ -364,15 +371,16 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 		}
 
 		// TODO: use same worker model as isolate and checker?
-		grouperOutput, err := exec.Command(grouperPath, strconv.FormatFloat(manifestInstance.Groups[i].FullScore, 'E', -1, 64), strconv.Itoa(manifestInstance.Groups[i].TestIndices.Start+1), strconv.Itoa(manifestInstance.Groups[i].TestIndices.End), submissionID).Output()
+		grouperOutput, err := exec.Command(grouperPath, submissionID, strconv.FormatFloat(manifestInstance.Groups[i].FullScore, 'f', -1, 64), strconv.Itoa(manifestInstance.Groups[i].TestIndices.Start+1), strconv.Itoa(manifestInstance.Groups[i].TestIndices.End)).Output()
+
 		if err != nil {
-			log.Printf("Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID)
+			log.Print(errors.Wrapf(err, "Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID))
 			groupResults.GroupedSuccessful = false
 			grouperOutput = []byte("0") // fall through
 		}
-		score, err := strconv.ParseFloat(string(grouperOutput), 64)
+		score, err := strconv.ParseFloat(strings.TrimSpace(string(grouperOutput)), 64)
 		if err != nil {
-			log.Printf("Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID)
+			log.Print(errors.Wrapf(err, "Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID))
 			groupResults.GroupedSuccessful = false
 			score = 0
 		}
