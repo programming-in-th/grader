@@ -9,7 +9,7 @@ import (
 )
 
 // Compiles user source into one file according to arguments in manifest.json
-func compileSubmission(submissionID string, problemID string, sourceFilePaths []string, compileCommands []string) (bool, string) {
+func compileSubmission(submissionID string, taskID string, sourceFilePaths []string, compileCommands []string) (bool, string) {
 	// Regexp gets contents of first [i] match including brackets
 	sourceFileIndex := 0
 	for i, arg := range compileCommands {

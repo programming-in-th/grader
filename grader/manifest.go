@@ -89,9 +89,9 @@ type LangRunLimit struct {
 	MemoryLimit int
 }
 
-// problemManifest is a type binding for the manifest.json stored in each problem's directory.
+// taskManifest is a type binding for the manifest.json stored in each task's directory.
 // This is mainly needed to validate the data in manifest.json
-type problemManifest struct {
+type taskManifest struct {
 	ID            string
 	DefaultLimits *LangRunLimit
 	Limits        map[string]LangRunLimit
@@ -122,13 +122,13 @@ func getLangCompileConfig(globalConfigInstance *GlobalConfiguration, targLang st
 	return &langConfig
 }
 
-func readManifestFromFile(manifestPath string) (*problemManifest, error) {
+func readManifestFromFile(manifestPath string) (*taskManifest, error) {
 	manifestFileBytes, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to read manifest.json file at %s", manifestPath)
 	}
 
-	var manifestInstance problemManifest
+	var manifestInstance taskManifest
 	json.Unmarshal(manifestFileBytes, &manifestInstance)
 
 	// Decrease indices for easier handling
@@ -148,7 +148,7 @@ func readManifestFromFile(manifestPath string) (*problemManifest, error) {
 	return &manifestInstance, nil
 }
 
-func waitForTestResult(manifestInstance *problemManifest, submissionID string, targLang string, userBinPath string, testIndex int, q *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*SingleTestResult, error) {
+func waitForTestResult(manifestInstance *taskManifest, submissionID string, targLang string, userBinPath string, testIndex int, q *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*SingleTestResult, error) {
 	// Initialize channels for parallel judging
 	isolateResultChannel := make(chan isolateTestResult)
 	checkerChannel := make(chan checkerResult)
@@ -228,8 +228,8 @@ func waitForTestResult(manifestInstance *problemManifest, submissionID string, t
 	}
 }
 
-// GradeSubmission is the method that is called when the web server wants to request a problem to be judged
-func GradeSubmission(submissionID string, problemID string, targLang string, code []string, ijq *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*GroupedSubmissionResult, error) {
+// GradeSubmission is the method that is called when the web server wants to request a task to be judged
+func GradeSubmission(submissionID string, taskID string, targLang string, code []string, ijq *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*GroupedSubmissionResult, error) {
 	taskBasePath := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks")
 
 	langConfig := getLangCompileConfig(globalConfigInstance, targLang)
@@ -259,7 +259,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 	}()
 
 	// Locate manifest file and read it
-	manifestPath := path.Join(taskBasePath, problemID, "manifest.json")
+	manifestPath := path.Join(taskBasePath, taskID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath)
 	if err != nil {
 		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Error reading manifest file")
@@ -291,7 +291,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 	// Add compile files to srcFilePaths after defer statement so it doesn't delete
 	if _, exists := manifestInstance.CompileFiles[targLang]; exists {
 		for _, compileFile := range manifestInstance.CompileFiles[targLang] {
-			srcFilePaths = append(srcFilePaths, path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", problemID, compileFile))
+			srcFilePaths = append(srcFilePaths, path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", taskID, compileFile))
 		}
 	}
 
@@ -301,7 +301,7 @@ func GradeSubmission(submissionID string, problemID string, targLang string, cod
 	var userBinPath string
 	if langConfig.CompileCommands != nil && len(langConfig.CompileCommands) != 0 {
 		var compileSuccessful bool
-		compileSuccessful, userBinPath = compileSubmission(submissionID, problemID, srcFilePaths, langConfig.CompileCommands)
+		compileSuccessful, userBinPath = compileSubmission(submissionID, taskID, srcFilePaths, langConfig.CompileCommands)
 		if !compileSuccessful {
 			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, nil
 		}

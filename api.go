@@ -13,7 +13,7 @@ import (
 
 type gradingRequest struct {
 	SubmissionID string
-	ProblemID    string
+	TaskID       string
 	TargLang     string
 	Code         []string
 }
@@ -22,7 +22,7 @@ func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq c
 	for {
 		select {
 		case request := <-ch:
-			result, err := grader.GradeSubmission(request.SubmissionID, request.ProblemID, request.TargLang, request.Code, ijq, cjq, globalConfig)
+			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, ijq, cjq, globalConfig)
 			if err != nil {
 				// TODO: do something with the error
 				log.Println(err)
