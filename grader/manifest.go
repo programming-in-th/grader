@@ -12,33 +12,13 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/conf"
 	"github.com/programming-in-th/grader/isolate"
 	"github.com/programming-in-th/grader/util"
 )
 
 const BASE_TMP_PATH = "/tmp/grader"
 const BASE_SRC_PATH = BASE_TMP_PATH + "/source"
-
-/* TEST RESULT TYPES */
-
-const (
-	// ACVerdict means the program passed the test
-	ACVerdict string = "Correct"
-	// PartialVerdict means the program was partially correct on the test
-	PartialVerdict string = "Partially Correct"
-	// WAVerdict means the program got the wrong answer on the test
-	WAVerdict string = "Incorrect"
-	// TLEVerdict means the program timed out
-	TLEVerdict string = "Time Limit Exceeded"
-	// MLEVerdict means the program used too much memory
-	MLEVerdict string = "Memory Limit Exceeded"
-	// REVerdict means the program caused a runtime error (not including MLE)
-	REVerdict string = "Memory Limit Exceeded"
-	// IEVerdict means an internal error of the grader occurred
-	IEVerdict string = "Judge Error"
-	// SKVerdict means the test was skipped because a dependent group was not passed
-	SKVerdict string = "Skipped"
-)
 
 // ListedSubmissionResult contains information about the result of a submission
 type ListedSubmissionResult struct {
@@ -106,23 +86,7 @@ type taskManifest struct {
 	solutionsBasePath string
 }
 
-func getLangCompileConfig(globalConfigInstance *GlobalConfiguration, targLang string) *LangCompileConfiguration {
-	// Find target language's compile configuration
-	foundLang := false
-	var langConfig LangCompileConfiguration
-	for _, langConfig = range globalConfigInstance.CompileConfiguration {
-		if langConfig.ID == targLang {
-			foundLang = true
-			break
-		}
-	}
-	if !foundLang {
-		return nil
-	}
-	return &langConfig
-}
-
-func readManifestFromFile(manifestPath string) (*taskManifest, error) {
+func readManifestFromFile(manifestPath string, config *conf.Config) (*taskManifest, error) {
 	manifestFileBytes, err := ioutil.ReadFile(manifestPath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to read manifest.json file at %s", manifestPath)
@@ -140,7 +104,7 @@ func readManifestFromFile(manifestPath string) (*taskManifest, error) {
 		// Leave .End as is because we want it to be exclusive
 	}
 
-	manifestInstance.taskBasePath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", manifestInstance.ID)
+	manifestInstance.taskBasePath = path.Join(config.BasePath, "tasks", manifestInstance.ID)
 	manifestInstance.inputsBasePath = path.Join(manifestInstance.taskBasePath, "inputs")
 	manifestInstance.solutionsBasePath = path.Join(manifestInstance.taskBasePath, "solutions")
 	manifestInstance.numTests = manifestInstance.Groups[len(manifestInstance.Groups)-1].TestIndices.End
@@ -148,7 +112,7 @@ func readManifestFromFile(manifestPath string) (*taskManifest, error) {
 	return &manifestInstance, nil
 }
 
-func waitForTestResult(manifestInstance *taskManifest, submissionID string, targLang string, userBinPath string, testIndex int, q *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*SingleTestResult, error) {
+func waitForTestResult(manifestInstance *taskManifest, submissionID string, targLang string, userBinPath string, testIndex int, q *IsolateJobQueue, cjq chan CheckerJob, config *conf.Config) (*SingleTestResult, error) {
 	// Initialize channels for parallel judging
 	isolateResultChannel := make(chan isolateTestResult)
 	checkerChannel := make(chan checkerResult)
@@ -184,29 +148,29 @@ func waitForTestResult(manifestInstance *taskManifest, submissionID string, targ
 
 	// Check for fatal errors first and return corresponding results without running checker
 	if isolateResult.verdict == isolate.IsolateRunXX || isolateResult.verdict == isolate.IsolateRunOther {
-		writeCheckFile(submissionID, testIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-		return &SingleTestResult{IEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[IEVerdict]}, isolateResult.err
+		writeCheckFile(submissionID, testIndex, conf.IEVerdict, "0", config.Glob.DefaultMessages[conf.IEVerdict])
+		return &SingleTestResult{conf.IEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, config.Glob.DefaultMessages[conf.IEVerdict]}, isolateResult.err
 	}
 
 	if isolateResult.verdict != isolate.IsolateRunOK {
 		if isolateResult.verdict == isolate.IsolateRunMLE {
-			writeCheckFile(submissionID, testIndex, MLEVerdict, "0", globalConfigInstance.DefaultMessages[MLEVerdict])
-			return &SingleTestResult{MLEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[MLEVerdict]}, nil
+			writeCheckFile(submissionID, testIndex, conf.MLEVerdict, "0", config.Glob.DefaultMessages[conf.MLEVerdict])
+			return &SingleTestResult{conf.MLEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, config.Glob.DefaultMessages[conf.MLEVerdict]}, nil
 		} else if isolateResult.verdict == isolate.IsolateRunRE {
-			writeCheckFile(submissionID, testIndex, REVerdict, "0", globalConfigInstance.DefaultMessages[REVerdict])
-			return &SingleTestResult{REVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[REVerdict]}, nil
+			writeCheckFile(submissionID, testIndex, conf.REVerdict, "0", config.Glob.DefaultMessages[conf.REVerdict])
+			return &SingleTestResult{conf.REVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, config.Glob.DefaultMessages[conf.REVerdict]}, nil
 		} else if isolateResult.verdict == isolate.IsolateRunTLE {
-			writeCheckFile(submissionID, testIndex, TLEVerdict, "0", globalConfigInstance.DefaultMessages[TLEVerdict])
-			return &SingleTestResult{TLEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[TLEVerdict]}, nil
+			writeCheckFile(submissionID, testIndex, conf.TLEVerdict, "0", config.Glob.DefaultMessages[conf.TLEVerdict])
+			return &SingleTestResult{conf.TLEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, config.Glob.DefaultMessages[conf.TLEVerdict]}, nil
 		} else {
-			writeCheckFile(submissionID, testIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-			return &SingleTestResult{IEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, globalConfigInstance.DefaultMessages[IEVerdict]}, nil
+			writeCheckFile(submissionID, testIndex, conf.IEVerdict, "0", config.Glob.DefaultMessages[conf.IEVerdict])
+			return &SingleTestResult{conf.IEVerdict, "0", isolateResult.metrics.TimeElapsed, isolateResult.metrics.MemoryUsage, config.Glob.DefaultMessages[conf.IEVerdict]}, nil
 		}
 	} else {
 		// Assuming the verdict is isolate.IsolateRunOK, we run the checker
 		var checkerPath string
 		if manifestInstance.Checker != "custom" {
-			checkerPath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "defaultCheckers", manifestInstance.Checker)
+			checkerPath = path.Join(config.BasePath, "config", "defaultCheckers", manifestInstance.Checker)
 		} else {
 			checkerPath = path.Join(manifestInstance.taskBasePath, "checker")
 		}
@@ -229,10 +193,10 @@ func waitForTestResult(manifestInstance *taskManifest, submissionID string, targ
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a task to be judged
-func GradeSubmission(submissionID string, taskID string, targLang string, code []string, ijq *IsolateJobQueue, cjq chan CheckerJob, globalConfigInstance *GlobalConfiguration) (*GroupedSubmissionResult, error) {
-	taskBasePath := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks")
+func GradeSubmission(submissionID string, taskID string, targLang string, code []string, ijq *IsolateJobQueue, cjq chan CheckerJob, config *conf.Config) (*GroupedSubmissionResult, error) {
+	taskBasePath := path.Join(config.BasePath, "tasks")
 
-	langConfig := getLangCompileConfig(globalConfigInstance, targLang)
+	langConfig := conf.GetLangCompileConfig(config, targLang)
 	if langConfig == nil {
 		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Language not supported")
 	}
@@ -260,7 +224,7 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 
 	// Locate manifest file and read it
 	manifestPath := path.Join(taskBasePath, taskID, "manifest.json")
-	manifestInstance, err := readManifestFromFile(manifestPath)
+	manifestInstance, err := readManifestFromFile(manifestPath, config)
 	if err != nil {
 		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Error reading manifest file")
 	}
@@ -291,7 +255,7 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 	// Add compile files to srcFilePaths after defer statement so it doesn't delete
 	if _, exists := manifestInstance.CompileFiles[targLang]; exists {
 		for _, compileFile := range manifestInstance.CompileFiles[targLang] {
-			srcFilePaths = append(srcFilePaths, path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", taskID, compileFile))
+			srcFilePaths = append(srcFilePaths, path.Join(config.BasePath, "tasks", taskID, compileFile))
 		}
 	}
 
@@ -341,7 +305,7 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 		if foundInvalid {
 			currGroupResult.Score = 0
 			for j := 0; j < numTests; j++ {
-				currGroupResult.TestResults = append(currGroupResult.TestResults, SingleTestResult{SKVerdict, "0", 0, 0, ""})
+				currGroupResult.TestResults = append(currGroupResult.TestResults, SingleTestResult{conf.SKVerdict, "0", 0, 0, ""})
 			}
 			groupResults.GroupResults = append(groupResults.GroupResults, currGroupResult)
 			continue
@@ -352,7 +316,7 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 		wg.Add(numTests)
 		for testIndex := manifestInstance.Groups[i].TestIndices.Start; testIndex < manifestInstance.Groups[i].TestIndices.End; testIndex++ {
 			go func(idx int) {
-				currResult, err := waitForTestResult(manifestInstance, submissionID, targLang, userBinPath, idx, ijq, cjq, globalConfigInstance)
+				currResult, err := waitForTestResult(manifestInstance, submissionID, targLang, userBinPath, idx, ijq, cjq, config)
 				if err != nil {
 					log.Println(errors.Wrapf(err, "Error while judging submission %s at test %d", submissionID, idx))
 				}
@@ -365,7 +329,7 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 		// Run grouper
 		var grouperPath string
 		if manifestInstance.Grouper != "custom" {
-			grouperPath = path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "defaultGroupers", manifestInstance.Grouper)
+			grouperPath = path.Join(config.BasePath, "config", "defaultGroupers", manifestInstance.Grouper)
 		} else {
 			grouperPath = path.Join(manifestInstance.taskBasePath, "grouper")
 		}

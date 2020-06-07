@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
-	"path"
 
+	"github.com/programming-in-th/grader/conf"
 	"github.com/programming-in-th/grader/grader"
 	"github.com/programming-in-th/grader/util"
 )
@@ -18,11 +17,11 @@ type gradingRequest struct {
 	Code         []string
 }
 
-func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob, globalConfig *grader.GlobalConfiguration) {
+func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob, config *conf.Config) {
 	for {
 		select {
 		case request := <-ch:
-			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, ijq, cjq, globalConfig)
+			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, ijq, cjq, config)
 			if err != nil {
 				// TODO: do something with the error
 				log.Println(err)
@@ -48,12 +47,7 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan gr
 	(*w).Write([]byte("Successfully submission: " + request.SubmissionID))
 }
 
-func initGrader() {
-	_, taskBasePathEnvSet := os.LookupEnv("GRADER_TASK_BASE_PATH")
-	if !taskBasePathEnvSet {
-		log.Fatal("Environment variable GRADER_TASK_BASE_PATH is not set")
-	}
-
+func initGrader(config *conf.Config) {
 	// Create base tmp path for user binaries and outputs
 	err := util.CreateDirIfNotExist(grader.BASE_TMP_PATH)
 	if err != nil {
@@ -67,17 +61,13 @@ func initGrader() {
 	}
 
 	requestChannel := make(chan gradingRequest)
-	globalConfig, err := grader.ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "globalConfig.json"))
-	if err != nil {
-		log.Fatal("Error starting grader")
-	}
 	jobQueueDone := make(chan bool)
-	jobQueue := grader.NewIsolateJobQueue(1, jobQueueDone, globalConfig.IsolateBinPath)
+	jobQueue := grader.NewIsolateJobQueue(1, jobQueueDone, config.Glob.IsolateBinPath)
 	checkerJobQueueDone := make(chan bool)
-	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone, globalConfig)
+	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone, config)
 
 	// Init HTTP Handlers
-	go submissionWorker(requestChannel, &jobQueue, checkerJobQueue, globalConfig)
+	go submissionWorker(requestChannel, &jobQueue, checkerJobQueue, config)
 
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, requestChannel)

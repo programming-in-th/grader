@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/conf"
 )
 
 type CheckerJob struct {
@@ -28,8 +29,6 @@ type checkerResult struct {
 	message string
 }
 
-var possibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, IEVerdict}
-
 func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) error {
 	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex+1)+".check"))
 	if err != nil {
@@ -42,7 +41,7 @@ func writeCheckFile(submissionID string, testCaseIndex int, verdict string, scor
 	return nil
 }
 
-func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstance *GlobalConfiguration) {
+func checkerWorker(q chan CheckerJob, id int, done chan bool, config *conf.Config) {
 	for {
 		select {
 		case job := <-q:
@@ -50,8 +49,8 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 			output, err := exec.Command(job.checkerPath, job.inputPath, job.outputPath, job.solutionPath).Output()
 			if err != nil {
 				log.Fatal(errors.Wrapf(err, "Error during checking. Did you chmod +x the checker executable? Checker job: %#v", job))
-				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-				job.resultChannel <- checkerResult{IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict]}
+				writeCheckFile(job.submissionID, job.testCaseIndex, conf.IEVerdict, "0", config.Glob.DefaultMessages[conf.IEVerdict])
+				job.resultChannel <- checkerResult{conf.IEVerdict, "0", config.Glob.DefaultMessages[conf.IEVerdict]}
 				continue
 			}
 			outputLines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -64,14 +63,14 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 					}
 				}
 				return found
-			}(possibleCheckerVerdicts, outputLines[0])) {
-				writeCheckFile(job.submissionID, job.testCaseIndex, IEVerdict, "0", globalConfigInstance.DefaultMessages[IEVerdict])
-				job.resultChannel <- checkerResult{IEVerdict, "0", ""}
+			}(conf.PossibleCheckerVerdicts, outputLines[0])) {
+				writeCheckFile(job.submissionID, job.testCaseIndex, conf.IEVerdict, "0", config.Glob.DefaultMessages[conf.IEVerdict])
+				job.resultChannel <- checkerResult{conf.IEVerdict, "0", ""}
 				continue
 			}
 			if len(outputLines) == 2 {
-				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]])
-				job.resultChannel <- checkerResult{outputLines[0], outputLines[1], globalConfigInstance.DefaultMessages[outputLines[0]]}
+				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], config.Glob.DefaultMessages[outputLines[0]])
+				job.resultChannel <- checkerResult{outputLines[0], outputLines[1], config.Glob.DefaultMessages[outputLines[0]]}
 			} else {
 				writeCheckFile(job.submissionID, job.testCaseIndex, outputLines[0], outputLines[1], outputLines[2])
 				job.resultChannel <- checkerResult{outputLines[0], outputLines[1], outputLines[2]}
@@ -82,7 +81,7 @@ func checkerWorker(q chan CheckerJob, id int, done chan bool, globalConfigInstan
 	}
 }
 
-func NewCheckerJobQueue(maxWorkers int, done chan bool, globalConfigInstance *GlobalConfiguration) chan CheckerJob {
+func NewCheckerJobQueue(maxWorkers int, done chan bool, config *conf.Config) chan CheckerJob {
 	ch := make(chan CheckerJob)
 	var wg sync.WaitGroup
 
@@ -94,7 +93,7 @@ func NewCheckerJobQueue(maxWorkers int, done chan bool, globalConfigInstance *Gl
 	wg.Add(maxWorkers)
 	for i := 0; i < maxWorkers; i++ {
 		go func(i int) {
-			checkerWorker(ch, i, done, globalConfigInstance)
+			checkerWorker(ch, i, done, config)
 			wg.Done()
 		}(i)
 	}

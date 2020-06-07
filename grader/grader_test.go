@@ -2,15 +2,17 @@ package grader
 
 import (
 	"io/ioutil"
-	"os"
 	"path"
 	"testing"
+
+	"github.com/programming-in-th/grader/conf"
 )
 
 func TestReadManifest(t *testing.T) {
-	pathTo := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "tasks", "rectsum", "manifest.json")
+	gc := conf.InitConfig("/home/szawinis/testing")
+	pathTo := path.Join(gc.BasePath, "tasks", "rectsum", "manifest.json")
 	t.Log("Path to manifest.json: ", pathTo)
-	manifestInstance, err := readManifestFromFile(pathTo)
+	manifestInstance, err := readManifestFromFile(pathTo, gc)
 	if err != nil {
 		t.Error("Can't read manifest.json\n", err)
 	}
@@ -23,10 +25,7 @@ func TestGradeSubmission(t *testing.T) {
 	src := make([]string, 1)
 	data, err := ioutil.ReadFile("/home/szawinis/testing/rectsum_test.cpp")
 	src[0] = string(data)
-	gc, err := ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "globalConfig.json"))
-	if err != nil {
-		t.Error("Error grading submission: can't read global config")
-	}
+	gc := conf.InitConfig("/home/szawinis/testing")
 	jobQueueDone := make(chan bool)
 	jobQueue := NewIsolateJobQueue(1, jobQueueDone, "/usr/bin/isolate")
 	checkerJobQueueDone := make(chan bool)
@@ -42,13 +41,10 @@ func TestGradeSubmission(t *testing.T) {
 }
 
 func TestCompile(t *testing.T) {
-	gc, err := ReadGlobalConfig(path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "config", "globalConfig.json"))
-	if err != nil {
-		t.Error("Error grading submission: can't read global config")
-	}
+	gc := conf.InitConfig("/home/szawinis/testing")
 	src := make([]string, 1)
 	src[0] = "/home/szawinis/testing/rectsum_test.cpp"
-	successful, binPath := compileSubmission("submissionID", "rectsum", src, gc.CompileConfiguration[0].CompileCommands)
+	successful, binPath := compileSubmission("submissionID", "rectsum", src, gc.Glob.CompileConfiguration[0].CompileCommands)
 	t.Log("Compile success?", successful)
 	t.Log("User binary path:", binPath)
 }
