@@ -23,7 +23,7 @@ func TestReadManifest(t *testing.T) {
 // Tests whole grading pipeline
 func TestGradeSubmission(t *testing.T) {
 	src := make([]string, 1)
-	data, err := ioutil.ReadFile("/home/szawinis/testing/rectsum_test.cpp")
+	data, _ := ioutil.ReadFile("/home/szawinis/testing/rectsum_test.cpp")
 	src[0] = string(data)
 	gc := conf.InitConfig("/home/szawinis/testing")
 	jobQueueDone := make(chan bool)

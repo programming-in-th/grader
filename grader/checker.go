@@ -29,16 +29,15 @@ type checkerResult struct {
 	message string
 }
 
-func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) error {
+func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) {
 	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex+1)+".check"))
 	if err != nil {
 		log.Fatal("Error during checking. Cannot create .check file")
 	}
 	_, err = checkerFile.WriteString(verdict + "\n" + score + "\n" + message)
 	if err != nil {
-		log.Fatal("Error during checking. Cannot write to .check file")
+		log.Fatal("Error during checking. Cannot create .check file")
 	}
-	return nil
 }
 
 func checkerWorker(q chan CheckerJob, id int, done chan bool, config *conf.Config) {

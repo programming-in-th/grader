@@ -66,7 +66,6 @@ func runIsolate(
 		log.Fatal("Error cleaning up isolate instance") // We make this fatal because if it keeps recurring, we can't recover from it
 	}
 	job.resultChannel <- isolateTestResult{verdict, metrics, nil}
-	return
 }
 
 func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done chan bool, isolateBinPath string) {
@@ -77,7 +76,7 @@ func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done cha
 			boxIDPool.mux.Lock()
 			mex := 0
 			for {
-				used, _ := boxIDPool.boxIDs[mex]
+				used := boxIDPool.boxIDs[mex]
 				if !used {
 					boxIDPool.boxIDs[mex] = true
 					break
@@ -86,8 +85,8 @@ func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done cha
 			}
 			boxIDPool.mux.Unlock()
 			log.Printf("Running job on worker: %d", id)
-			log.Println(job)
-			log.Println("Box id for job:", mex)
+			log.Printf("Job: %#v", job)
+			log.Printf("Box id for job: %d", mex)
 			runIsolate(job, mex, isolateBinPath)
 			boxIDPool.mux.Lock()
 			boxIDPool.boxIDs[mex] = false

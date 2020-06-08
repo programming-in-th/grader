@@ -93,7 +93,10 @@ func readManifestFromFile(manifestPath string, config *conf.Config) (*taskManife
 	}
 
 	var manifestInstance taskManifest
-	json.Unmarshal(manifestFileBytes, &manifestInstance)
+	err = json.Unmarshal(manifestFileBytes, &manifestInstance)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to unmarshal manifest.json from file at %s", manifestPath)
+	}
 
 	// Decrease indices for easier handling
 	for i := 0; i < len(manifestInstance.Groups); i++ {
