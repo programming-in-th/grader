@@ -55,9 +55,7 @@ The global configuration is stored in the file globalConfig.json at the root of 
 
 To denote the user's source code, simply add "\$SRC" as an element in the array. Note that if there are any library files specified in CompileFiles in manifest.json (see Manifest Format), they will be inserted into the command where "\SRC" is as a space-separated string along with the path to the user's source code. You must also add "\$BIN" in the array to denote the argument that indicates the path to the output executable.
 
-The default message to display in the last line of the checker's output for verdicts "Correct", "Partially Correct", "Incorrect" and "Judge Error" (see Checker) can be configured in the DefaultMessages field, which contains a map that has keys equal to each verdict, and values equal to the default message for the corresponding verdict.
-
-The location of the sandbox binary (named "isolate") must be specified, in case it is installed in a non-standard location. Specify this with the IsolateBinPath field.
+The default message to display in the last line of the checker's output for each verdict (see Checker) can be configured in the DefaultMessages field, which contains a map that has keys equal to each verdict, and values equal to the default message for the corresponding verdict.
 
 A sample global configuration is as follows:
 ```json
@@ -81,9 +79,11 @@ A sample global configuration is as follows:
     "Correct": "Output is correct",
     "Partially Correct": "Output is partially correct",
     "Incorrect": "Output is incorrect",
-    "Judge Error": "Judge killed: internal error"
-  },
-  "IsolateBinPath": "/usr/bin/isolate"
+    "Time Limit Exceeded": "Judge killed: time limit exceeded",
+    "Memory Limit Exceeded": "Judge killed: memory limit exceeded",
+    "Runtime error": "Judge killed: runtime error",
+    "Judge error": "Judge killed: internal error"
+  }
 }
 ```
 
@@ -177,7 +177,7 @@ The checker must then write two lines to standard output. The first line denotes
 * Judging Error
 
 In a custom checker, metrics about the user's program on the current test case must be printed on the second line. If a custom grouper is used, then any string can be printed on the second line. Otherwise, if one of the default groupers is used, you must conform to its protocol (see Default Groupers for more information).
-In a custom checker, the score of the user's program on the current test case must then be printed on the second line. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case. If no message is provided, the default message specified in the global configuration (see Global Configuration) will be automatically added instead if it exists.
+In a custom checker, the score of the user's program on the current test case must then be printed on the second line. Finally, on the last line, the checker can **optionally** output a message describing the result of the test case. If no message is provided, the default message specified in the global configuration (see Global Configuration) will be automatically added instead.
 
 For example, the following are valid outputs from a custom checker:
 
@@ -198,22 +198,22 @@ Incorrect
 Wrong format
 ```
 
-(!) In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/grader/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually. In other words, the following verdicts **must not** be used by a custom checker. Note that {DEFAULT\_MESSAGE} denotes the default message for the corresponding verdict if it exists (see Global Configuration).
+(!) In the case when the program exceeds the time limit, memory limit, or encounters a runtime error, the grader will write the following to the /tmp/grader/{submissionID}/{testCaseIndex}.check instead of running the checker script. You **must not** handle this manually. In other words, the following verdicts **must not** be used by a custom checker. Note that {DEFAULT\_MESSAGE} denotes the default message for the corresponding verdict (see Global Configuration)
 
 ```plaintext
-Time limit Exceeded
+Time limit exceeded
 0
 {DEFAULT_MESSAGE}
 ```
 
 ```plaintext
-Memory limit Exceeded
+Memory limit exceeded
 0
 {DEFAULT_MESSAGE}
 ```
 
 ```plaintext
-Runtime Error
+Runtime error
 0
 {DEFAULT_MESSAGE}
 ```
@@ -231,11 +231,10 @@ Judging Error
 ## Grouper
 The grouper script's role is to gather individual scores and verdicts from the checker to determine the score on a test group. Note that the grouper does not handle dependencies between test groups, as that is already handled automatically by the grader via manifest.json. Hence, the grouper will run once per test group. Note that we provide some groupers for normal use cases, but you may decide to write your own grouper if you need more sophisticated custom functionality.
 
-The grouper must accept three command line arguments (excluding the name of the grouper itself):
-1. A string indicating the current submission ID (used for locating the .check files in /tmp/grader/{submissionID})
-2. A floating-point number indicating the maximum score of the test group
-3. An integer indicating the starting test index of the test group (1-indexed)
-4. An integer indicating the ending (inclusive) test index of the test group (1-indexed)
+The grouper must three command line arguments (excluding the name of the grouper itself):
+1. A floating-point number indicating the maximum score of the test group
+2. An integer indicating the starting test index of the test group (1-indexed)
+3. An integer indicating the ending (inclusive) test index of the test group (1-indexed)
 
 The grouper must then print the score of the test group to standard output as a floating point number.
 

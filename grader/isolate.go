@@ -38,12 +38,11 @@ type IsolateJobQueue struct {
 func runIsolate(
 	job isolateJob,
 	boxID int,
-	isolateBinPath string,
 ) {
 
 	// Run a new isolate instance
 	instance := isolate.NewInstance(
-		isolateBinPath,
+		"/usr/bin/isolate",
 		boxID,
 		job.userBinPath,
 		1,
@@ -66,9 +65,10 @@ func runIsolate(
 		log.Fatal("Error cleaning up isolate instance") // We make this fatal because if it keeps recurring, we can't recover from it
 	}
 	job.resultChannel <- isolateTestResult{verdict, metrics, nil}
+	return
 }
 
-func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done chan bool, isolateBinPath string) {
+func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done chan bool) {
 	for {
 		select {
 		case job := <-q:
@@ -76,7 +76,7 @@ func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done cha
 			boxIDPool.mux.Lock()
 			mex := 0
 			for {
-				used := boxIDPool.boxIDs[mex]
+				used, _ := boxIDPool.boxIDs[mex]
 				if !used {
 					boxIDPool.boxIDs[mex] = true
 					break
@@ -85,9 +85,9 @@ func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done cha
 			}
 			boxIDPool.mux.Unlock()
 			log.Printf("Running job on worker: %d", id)
-			log.Printf("Job: %#v", job)
-			log.Printf("Box id for job: %d", mex)
-			runIsolate(job, mex, isolateBinPath)
+			log.Println(job)
+			log.Println("Box id for job:", mex)
+			runIsolate(job, mex)
 			boxIDPool.mux.Lock()
 			boxIDPool.boxIDs[mex] = false
 			boxIDPool.mux.Unlock()
@@ -97,7 +97,7 @@ func isolateWorker(q chan isolateJob, boxIDPool *safeBoxIDPool, id int, done cha
 	}
 }
 
-func NewIsolateJobQueue(maxWorkers int, done chan bool, isolateBinPath string) IsolateJobQueue {
+func NewIsolateJobQueue(maxWorkers int, done chan bool) IsolateJobQueue {
 	q := make(chan isolateJob)
 	var wg sync.WaitGroup
 
@@ -110,7 +110,7 @@ func NewIsolateJobQueue(maxWorkers int, done chan bool, isolateBinPath string) I
 	boxIDPool := safeBoxIDPool{boxIDs: make(map[int]bool)}
 	for i := 0; i < maxWorkers; i++ {
 		go func(i int) {
-			isolateWorker(q, &boxIDPool, i, done, isolateBinPath)
+			isolateWorker(q, &boxIDPool, i, done)
 			wg.Done()
 		}(i)
 	}
