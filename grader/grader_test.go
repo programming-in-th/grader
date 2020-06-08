@@ -1,30 +1,36 @@
 package grader
 
 import (
-	"os"
+	"io/ioutil"
 	"path"
 	"testing"
+
+	"github.com/programming-in-th/grader/conf"
 )
 
 func TestReadManifest(t *testing.T) {
-	pathTo := path.Join(os.Getenv("GRADER_TASK_BASE_PATH"), "asdf", "manifest.json")
+	gc := conf.InitConfig("/home/szawinis/testing")
+	pathTo := path.Join(gc.BasePath, "tasks", "rectsum", "manifest.json")
 	t.Log("Path to manifest.json: ", pathTo)
-	manifestInstance, err := readManifestFromFile(pathTo)
+	manifestInstance, err := readManifestFromFile(pathTo, gc)
 	if err != nil {
 		t.Error("Can't read manifest.json\n", err)
 	}
 	t.Log(manifestInstance)
+	t.Log(manifestInstance.DefaultLimits)
 }
 
 // Tests whole grading pipeline
 func TestGradeSubmission(t *testing.T) {
-	jobQueueDone := make(chan bool)
-	jobQueue := NewIsolateJobQueue(2, jobQueueDone)
-	checkerJobQueueDone := make(chan bool)
-	checkerJobQueue := NewCheckerJobQueue(5, checkerJobQueueDone)
 	src := make([]string, 1)
-	src[0] = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/ac.cpp"
-	submissionResult, err := GradeSubmission("submissionID", "asdf", "cpp", src, &jobQueue, checkerJobQueue)
+	data, _ := ioutil.ReadFile("/home/szawinis/testing/rectsum_test.cpp")
+	src[0] = string(data)
+	gc := conf.InitConfig("/home/szawinis/testing")
+	jobQueueDone := make(chan bool)
+	jobQueue := NewIsolateJobQueue(1, jobQueueDone, "/usr/bin/isolate")
+	checkerJobQueueDone := make(chan bool)
+	checkerJobQueue := NewCheckerJobQueue(5, checkerJobQueueDone, gc)
+	submissionResult, err := GradeSubmission("submissionID", "rectsum", "cpp14", src, &jobQueue, checkerJobQueue, gc)
 	if err != nil {
 		t.Error("Error grading submission")
 	}
@@ -35,10 +41,10 @@ func TestGradeSubmission(t *testing.T) {
 }
 
 func TestCompile(t *testing.T) {
+	gc := conf.InitConfig("/home/szawinis/testing")
 	src := make([]string, 1)
-	src[0] = "/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/ac.cpp"
-	manifest, _ := readManifestFromFile("/home/szawinis/go/src/github.com/programming-in-th/grader/testing/asdf/manifest.json")
-	successful, binPath := compileSubmission("submissionID", "asdf", "cpp", src, manifest)
+	src[0] = "/home/szawinis/testing/rectsum_test.cpp"
+	successful, binPath := compileSubmission("submissionID", "rectsum", src, gc.Glob.CompileConfiguration[0].CompileCommands)
 	t.Log("Compile success?", successful)
 	t.Log("User binary path:", binPath)
 }
