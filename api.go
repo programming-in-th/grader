@@ -17,11 +17,11 @@ type gradingRequest struct {
 	Code         []string
 }
 
-func submissionWorker(ch chan gradingRequest, ijq *grader.IsolateJobQueue, cjq chan grader.CheckerJob, config *conf.Config) {
+func submissionWorker(ch chan gradingRequest, config conf.Config) {
 	for {
 		select {
 		case request := <-ch:
-			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, ijq, cjq, config)
+			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, config)
 			if err != nil {
 				// TODO: do something with the error
 				log.Println(err)
@@ -47,7 +47,7 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan gr
 	(*w).Write([]byte("Successfully submission: " + request.SubmissionID))
 }
 
-func initGrader(config *conf.Config) {
+func initGrader(config conf.Config) {
 	// Create base tmp path for user binaries and outputs
 	err := util.CreateDirIfNotExist(grader.BASE_TMP_PATH)
 	if err != nil {
@@ -61,20 +61,14 @@ func initGrader(config *conf.Config) {
 	}
 
 	requestChannel := make(chan gradingRequest)
-	jobQueueDone := make(chan bool)
-	jobQueue := grader.NewIsolateJobQueue(1, jobQueueDone, config.Glob.IsolateBinPath)
-	checkerJobQueueDone := make(chan bool)
-	checkerJobQueue := grader.NewCheckerJobQueue(5, checkerJobQueueDone, config)
 
 	// Init HTTP Handlers
-	go submissionWorker(requestChannel, &jobQueue, checkerJobQueue, config)
+	go submissionWorker(requestChannel, config)
 
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, requestChannel)
 	})
 	http.ListenAndServe(":11112", nil) // TODO: set to localhost only
 
-	jobQueueDone <- true
-	checkerJobQueueDone <- true
 	close(requestChannel)
 }
