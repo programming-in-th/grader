@@ -50,7 +50,7 @@ type Config struct {
 
 var PossibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, IEVerdict}
 
-func GetLangCompileConfig(config *Config, targLang string) *LangCompileConfiguration {
+func GetLangCompileConfig(config Config, targLang string) *LangCompileConfiguration {
 	// Find target language's compile configuration
 	foundLang := false
 	var langConfig LangCompileConfiguration
@@ -66,10 +66,10 @@ func GetLangCompileConfig(config *Config, targLang string) *LangCompileConfigura
 	return &langConfig
 }
 
-func readGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
+func readGlobalConfig(globalConfigPath string) (GlobalConfiguration, error) {
 	configFileBytes, err := ioutil.ReadFile(globalConfigPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to read global configuration file at %s", globalConfigPath)
+		return GlobalConfiguration{}, errors.Wrapf(err, "Failed to read global configuration file at %s", globalConfigPath)
 	}
 
 	var globalConfigInstance GlobalConfiguration
@@ -78,7 +78,7 @@ func readGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
 	// Check that each verdict is present
 	for _, checkerVerdict := range PossibleCheckerVerdicts {
 		if _, exists := globalConfigInstance.DefaultMessages[checkerVerdict]; !exists {
-			return nil, errors.Wrap(err, "Global configuration format incorrect: incomplete parameters")
+			return GlobalConfiguration{}, errors.Wrap(err, "Global configuration format incorrect: incomplete parameters")
 		}
 	}
 
@@ -93,10 +93,10 @@ func readGlobalConfig(globalConfigPath string) (*GlobalConfiguration, error) {
 		globalConfigInstance.DefaultMessages[REVerdict] = ""
 	}
 
-	return &globalConfigInstance, nil
+	return globalConfigInstance, nil
 }
 
-func InitConfig(basePath string) *Config {
+func InitConfig(basePath string) Config {
 	// Check if base path exists
 	_, err := os.Stat(basePath)
 	if err != nil && os.IsNotExist(err) {
@@ -109,6 +109,6 @@ func InitConfig(basePath string) *Config {
 		log.Fatal("Error reading global configuration file")
 	}
 
-	confInstance := Config{basePath, *globalConfig}
-	return &confInstance
+	confInstance := Config{basePath, globalConfig}
+	return confInstance
 }

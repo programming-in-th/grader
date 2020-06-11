@@ -3,7 +3,6 @@ package isolate
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -92,7 +91,6 @@ func NewInstance(
 
 // Init initializes the new box directory for the Instance
 func (instance *Instance) Init() error { // returns true if finished OK, otherwise returns false
-	log.Println(instance.isolateExecPath)
 	// Isolate needs to be run as root
 	isRoot, err := checkRootPermissions()
 	if err != nil {
@@ -183,7 +181,7 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 }
 
 // Run runs isolate on an Instance
-func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
+func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	// Run isolate --run
 	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.boxBinaryName}...)
 	var exitCode int
@@ -196,7 +194,7 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	// Read and parse log file into a map
 	logFileBytes, err := ioutil.ReadFile(instance.logFile)
 	if err != nil {
-		return IsolateRunOther, nil
+		return IsolateRunOther, RunMetrics{}
 	}
 	contents := string(logFileBytes)
 	props := make(map[string]string)
@@ -206,14 +204,14 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 		}
 		pair := strings.Split(line, ":")
 		if len(pair) != 2 {
-			return IsolateRunOther, nil
+			return IsolateRunOther, RunMetrics{}
 		}
 		props[strings.TrimSpace(pair[0])] = strings.TrimSpace(pair[1])
 	}
 
 	// If the error is XX, then the fields required for run metrics won't be there
 	if instance.checkXX(props) {
-		return IsolateRunXX, nil
+		return IsolateRunXX, RunMetrics{}
 	}
 
 	// Validate fields and extract run metrics from the map
@@ -221,18 +219,18 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 	timeElapsedString, timeElapsedExists := props["time"]
 	_, wallTimeElapsedExists := props["time-wall"]
 	if !memoryUsageExists || !timeElapsedExists || !wallTimeElapsedExists {
-		return IsolateRunOther, nil
+		return IsolateRunOther, RunMetrics{}
 	}
 	memoryUsage, err := strconv.Atoi(memoryUsageString)
 	if err != nil {
-		return IsolateRunOther, nil
+		return IsolateRunOther, RunMetrics{}
 	}
 	timeElapsed, err := strconv.ParseFloat(timeElapsedString, 64)
 	if err != nil {
-		return IsolateRunOther, nil
+		return IsolateRunOther, RunMetrics{}
 	}
 	if err != nil {
-		return IsolateRunOther, nil
+		return IsolateRunOther, RunMetrics{}
 	}
 	metricObject := RunMetrics{TimeElapsed: timeElapsed, MemoryUsage: memoryUsage}
 
@@ -241,24 +239,24 @@ func (instance *Instance) Run() (RunVerdict, *RunMetrics) {
 		// IMPORTANT: copy output out of isolate directory
 		err = exec.Command("cp", path.Join(instance.isolateDirectory, instance.isolateOutputName), instance.resultOutputTargetPath).Run()
 		if err != nil {
-			return IsolateRunOther, nil
+			return IsolateRunOther, RunMetrics{}
 		}
-		return IsolateRunOK, &metricObject
+		return IsolateRunOK, metricObject
 	}
 	code, _ := instance.checkRE(props)
 	if code == 1 {
-		return IsolateRunMLE, &metricObject
+		return IsolateRunMLE, metricObject
 	} else if code == 2 {
-		return IsolateRunRE, &metricObject
+		return IsolateRunRE, metricObject
 	} else if code == -1 {
-		return IsolateRunOther, nil
+		return IsolateRunOther, RunMetrics{}
 	}
 	if tle, logFileCorrupted := instance.checkTLE(props); tle {
-		return IsolateRunTLE, &metricObject
+		return IsolateRunTLE, metricObject
 	} else if logFileCorrupted {
-		return IsolateRunOther, nil
+		return IsolateRunOther, RunMetrics{}
 	}
-	return IsolateRunOther, nil
+	return IsolateRunOther, RunMetrics{}
 }
 
 func checkRootPermissions() (bool, error) {
