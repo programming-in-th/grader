@@ -3,16 +3,11 @@ package grader
 import (
 	"log"
 	"strconv"
-	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/conf"
 	"github.com/programming-in-th/grader/isolate"
 )
-
-type safeBoxIDPool struct {
-	boxIDs map[int]bool
-	mux    sync.Mutex
-}
 
 type isolateTestResult struct {
 	verdict isolate.RunVerdict
@@ -28,22 +23,20 @@ func runIsolate(
 	inputPath string,
 	outputPath string,
 	isolateBinPath string,
-	boxIDPool *safeBoxIDPool,
+	boxIDPool *conf.SafeBoxIDPool,
 ) isolateTestResult {
 	// Find minimum excludant in box ID pool
-	boxIDPool.mux.Lock()
+	boxIDPool.Mux.Lock()
 	boxID := 0
 	for {
-		used := boxIDPool.boxIDs[boxID]
+		used := boxIDPool.BoxIDs[boxID]
 		if !used {
-			boxIDPool.boxIDs[boxID] = true
+			boxIDPool.BoxIDs[boxID] = true
 			break
 		}
 		boxID++
 	}
-	boxIDPool.mux.Unlock()
-
-	log.Printf("Box id for job: %d", boxID)
+	boxIDPool.Mux.Unlock()
 
 	// Run a new isolate instance
 	instance := isolate.NewInstance(
@@ -62,9 +55,9 @@ func runIsolate(
 	err := instance.Init()
 	if err != nil {
 		// Make sure we unlock box IDs
-		boxIDPool.mux.Lock()
-		boxIDPool.boxIDs[boxID] = false
-		boxIDPool.mux.Unlock()
+		boxIDPool.Mux.Lock()
+		boxIDPool.BoxIDs[boxID] = false
+		boxIDPool.Mux.Unlock()
 		return isolateTestResult{verdict: isolate.IsolateRunOther, err: errors.Wrap(err, "Error initializing isolate instance")}
 	}
 	verdict, metrics := instance.Run()
@@ -75,9 +68,9 @@ func runIsolate(
 
 	// Make sure box ID is unlocked
 	// We don't defer this because the isolate instance MUST be cleaned up before others can use it
-	boxIDPool.mux.Lock()
-	boxIDPool.boxIDs[boxID] = false
-	boxIDPool.mux.Unlock()
+	boxIDPool.Mux.Lock()
+	boxIDPool.BoxIDs[boxID] = false
+	boxIDPool.Mux.Unlock()
 
 	return isolateTestResult{verdict, metrics, nil}
 }

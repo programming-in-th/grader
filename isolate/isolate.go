@@ -3,7 +3,6 @@ package isolate
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -92,7 +91,6 @@ func NewInstance(
 
 // Init initializes the new box directory for the Instance
 func (instance *Instance) Init() error { // returns true if finished OK, otherwise returns false
-	log.Println(instance.isolateExecPath)
 	// Isolate needs to be run as root
 	isRoot, err := checkRootPermissions()
 	if err != nil {

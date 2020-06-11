@@ -47,6 +47,7 @@ type SingleGroupResult struct {
 type GroupedSubmissionResult struct {
 	CompileSuccessful bool
 	GroupedSuccessful bool
+	Score             float64
 	GroupResults      []SingleGroupResult
 }
 
@@ -210,7 +211,7 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 
 	log.Printf("%#v", manifestInstance.Groups)
 
-	groupResults := GroupedSubmissionResult{CompileSuccessful: true, GroupedSuccessful: true}
+	groupResults := GroupedSubmissionResult{CompileSuccessful: true, GroupedSuccessful: true, Score: 0}
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 
 		currGroupResult := SingleGroupResult{Score: -1, TestResults: make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start)}
@@ -243,7 +244,8 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 			go func(idx int) {
 				gradingJobChannel <- gradingJob{manifestInstance, submissionID, targLang, userBinPath, idx}
 				currResult := <-resultChannel
-				currGroupResult.TestResults[i-manifestInstance.Groups[i].TestIndices.Start] = currResult
+				currGroupResult.TestResults[idx-manifestInstance.Groups[i].TestIndices.Start] = currResult
+				log.Printf("Test #%d done", idx)
 				wg.Done()
 			}(testIndex)
 		}
@@ -278,6 +280,7 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 			score = 0
 		}
 		currGroupResult.Score = score
+		groupResults.Score += score
 		groupResults.GroupResults = append(groupResults.GroupResults, currGroupResult)
 	}
 

@@ -24,7 +24,6 @@ func waitForTestResult(manifestInstance taskManifest,
 	userBinPath string,
 	testIndex int,
 	config conf.Config,
-	boxIDPool *safeBoxIDPool,
 ) SingleTestResult {
 	// Convert time and memory limits
 	var timeLimit float64
@@ -45,7 +44,7 @@ func waitForTestResult(manifestInstance taskManifest,
 		path.Join(manifestInstance.inputsBasePath, strconv.Itoa(testIndex+1)+".in"),
 		path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testIndex+1)+".out"),
 		config.Glob.IsolateBinPath,
-		boxIDPool,
+		config.BoxIDPool,
 	)
 
 	// Check for fatal errors first and return corresponding results without running checker
@@ -101,7 +100,6 @@ func NewGradingJobQueue(maxWorkers int, resultChannel chan SingleTestResult, don
 	}()
 
 	wg.Add(maxWorkers)
-	boxIDPool := safeBoxIDPool{boxIDs: make(map[int]bool)}
 	for i := 0; i < maxWorkers; i++ {
 		go func(i int) {
 			for {
@@ -113,14 +111,13 @@ func NewGradingJobQueue(maxWorkers int, resultChannel chan SingleTestResult, don
 						job.userBinPath,
 						job.testIndex,
 						config,
-						&boxIDPool,
 					)
 					resultChannel <- result
 				case <-done:
-					break
+					wg.Done()
+					return
 				}
 			}
-			wg.Done()
 		}(i)
 	}
 	return ch
