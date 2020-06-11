@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -44,15 +43,9 @@ type GlobalConfiguration struct {
 	IsolateBinPath       string
 }
 
-type SafeBoxIDPool struct {
-	BoxIDs map[int]bool
-	Mux    sync.Mutex
-}
-
 type Config struct {
-	BasePath  string
-	BoxIDPool *SafeBoxIDPool
-	Glob      GlobalConfiguration
+	BasePath string
+	Glob     GlobalConfiguration
 }
 
 var PossibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, IEVerdict}
@@ -116,8 +109,6 @@ func InitConfig(basePath string) Config {
 		log.Fatal("Error reading global configuration file")
 	}
 
-	boxIDPool := SafeBoxIDPool{BoxIDs: make(map[int]bool)}
-
-	confInstance := Config{basePath, &boxIDPool, globalConfig}
+	confInstance := Config{basePath, globalConfig}
 	return confInstance
 }

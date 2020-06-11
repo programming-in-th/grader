@@ -116,7 +116,12 @@ func readManifestFromFile(manifestPath string, config conf.Config) (taskManifest
 }
 
 // GradeSubmission is the method that is called when the web server wants to request a task to be judged
-func GradeSubmission(submissionID string, taskID string, targLang string, code []string, config conf.Config) (*GroupedSubmissionResult, error) {
+func GradeSubmission(submissionID string,
+	taskID string,
+	targLang string,
+	code []string,
+	gradingJobChannel chan GradingJob,
+	config conf.Config) (*GroupedSubmissionResult, error) {
 	taskBasePath := path.Join(config.BasePath, "tasks")
 
 	langConfig := conf.GetLangCompileConfig(config, targLang)
@@ -238,11 +243,9 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 		var wg sync.WaitGroup
 		wg.Add(numTests)
 		resultChannel := make(chan SingleTestResult)
-		gradingJobDoneChannel := make(chan bool)
-		gradingJobChannel := NewGradingJobQueue(2, resultChannel, gradingJobDoneChannel, config)
 		for testIndex := manifestInstance.Groups[i].TestIndices.Start; testIndex < manifestInstance.Groups[i].TestIndices.End; testIndex++ {
 			go func(idx int) {
-				gradingJobChannel <- gradingJob{manifestInstance, submissionID, targLang, userBinPath, idx}
+				gradingJobChannel <- GradingJob{manifestInstance, submissionID, targLang, userBinPath, idx, resultChannel}
 				currResult := <-resultChannel
 				currGroupResult.TestResults[idx-manifestInstance.Groups[i].TestIndices.Start] = currResult
 				log.Printf("Test #%d done", idx)
@@ -250,8 +253,6 @@ func GradeSubmission(submissionID string, taskID string, targLang string, code [
 			}(testIndex)
 		}
 		wg.Wait()
-		gradingJobDoneChannel <- true
-		close(gradingJobDoneChannel)
 
 		// Run grouper
 		var grouperPath string

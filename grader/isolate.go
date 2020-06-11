@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/programming-in-th/grader/conf"
 	"github.com/programming-in-th/grader/isolate"
 )
 
@@ -23,7 +22,7 @@ func runIsolate(
 	inputPath string,
 	outputPath string,
 	isolateBinPath string,
-	boxIDPool *conf.SafeBoxIDPool,
+	boxIDPool *safeBoxIDPool,
 ) isolateTestResult {
 	// Find minimum excludant in box ID pool
 	boxIDPool.Mux.Lock()

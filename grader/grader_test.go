@@ -26,7 +26,9 @@ func TestGradeSubmission(t *testing.T) {
 	data, _ := ioutil.ReadFile("/home/szawinis/testing/rectsum_test.cpp")
 	src[0] = string(data)
 	gc := conf.InitConfig("/home/szawinis/testing")
-	submissionResult, err := GradeSubmission("submissionID", "rectsum", "cpp14", src, gc)
+	done := make(chan bool)
+	jobQueue := NewGradingJobQueue(2, done, gc)
+	submissionResult, err := GradeSubmission("submissionID", "rectsum", "cpp14", src, jobQueue, gc)
 	if err != nil {
 		t.Error("Error grading submission")
 	}

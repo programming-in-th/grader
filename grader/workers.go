@@ -10,12 +10,18 @@ import (
 	"github.com/programming-in-th/grader/isolate"
 )
 
-type gradingJob struct {
+type GradingJob struct {
 	manifestInstance taskManifest
 	submissionID     string
 	targLang         string
 	userBinPath      string
 	testIndex        int
+	resultChannel    chan SingleTestResult
+}
+
+type safeBoxIDPool struct {
+	BoxIDs map[int]bool
+	Mux    sync.Mutex
 }
 
 func waitForTestResult(manifestInstance taskManifest,
@@ -24,6 +30,7 @@ func waitForTestResult(manifestInstance taskManifest,
 	userBinPath string,
 	testIndex int,
 	config conf.Config,
+	boxIDPool *safeBoxIDPool,
 ) SingleTestResult {
 	// Convert time and memory limits
 	var timeLimit float64
@@ -44,7 +51,7 @@ func waitForTestResult(manifestInstance taskManifest,
 		path.Join(manifestInstance.inputsBasePath, strconv.Itoa(testIndex+1)+".in"),
 		path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testIndex+1)+".out"),
 		config.Glob.IsolateBinPath,
-		config.BoxIDPool,
+		boxIDPool,
 	)
 
 	// Check for fatal errors first and return corresponding results without running checker
@@ -90,8 +97,8 @@ func waitForTestResult(manifestInstance taskManifest,
 	}
 }
 
-func NewGradingJobQueue(maxWorkers int, resultChannel chan SingleTestResult, done chan bool, config conf.Config) chan gradingJob {
-	ch := make(chan gradingJob)
+func NewGradingJobQueue(maxWorkers int, done chan bool, config conf.Config) chan GradingJob {
+	ch := make(chan GradingJob)
 	var wg sync.WaitGroup
 
 	go func() {
@@ -99,6 +106,7 @@ func NewGradingJobQueue(maxWorkers int, resultChannel chan SingleTestResult, don
 		close(ch)
 	}()
 
+	boxIDPool := safeBoxIDPool{BoxIDs: make(map[int]bool)}
 	wg.Add(maxWorkers)
 	for i := 0; i < maxWorkers; i++ {
 		go func(i int) {
@@ -111,8 +119,8 @@ func NewGradingJobQueue(maxWorkers int, resultChannel chan SingleTestResult, don
 						job.userBinPath,
 						job.testIndex,
 						config,
-					)
-					resultChannel <- result
+						&boxIDPool)
+					job.resultChannel <- result
 				case <-done:
 					wg.Done()
 					return

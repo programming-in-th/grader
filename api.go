@@ -17,11 +17,11 @@ type gradingRequest struct {
 	Code         []string
 }
 
-func submissionWorker(ch chan gradingRequest, config conf.Config) {
+func submissionWorker(requestChannel chan gradingRequest, gradingJobChannel chan grader.GradingJob, config conf.Config) {
 	for {
 		select {
-		case request := <-ch:
-			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, config)
+		case request := <-requestChannel:
+			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, gradingJobChannel, config)
 			if err != nil {
 				// TODO: do something with the error
 				log.Println(err)
@@ -61,9 +61,11 @@ func initGrader(config conf.Config) {
 	}
 
 	requestChannel := make(chan gradingRequest)
+	gradingJobDoneChannel := make(chan bool)
+	gradingJobChannel := grader.NewGradingJobQueue(2, gradingJobDoneChannel, config)
 
 	// Init HTTP Handlers
-	go submissionWorker(requestChannel, config)
+	go submissionWorker(requestChannel, gradingJobChannel, config)
 
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, requestChannel)
@@ -71,4 +73,6 @@ func initGrader(config conf.Config) {
 	http.ListenAndServe(":11112", nil) // TODO: set to localhost only
 
 	close(requestChannel)
+	gradingJobDoneChannel <- true
+	close(gradingJobDoneChannel)
 }
