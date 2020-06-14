@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/programming-in-th/grader/conf"
 )
@@ -34,5 +35,5 @@ func InitAPI(ch chan GradingRequest, config conf.Config) {
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, ch)
 	})
-	http.ListenAndServe(config.Glob.ListenAddress, nil) // TODO: set to localhost only
+	http.ListenAndServe("localhost:"+strconv.Itoa(config.Glob.ListenPort), nil)
 }
