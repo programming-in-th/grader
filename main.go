@@ -29,7 +29,7 @@ func initGrader(config conf.Config) {
 
 	// Init handlers
 	go submissionWorker(requestChannel, gradingJobChannel, config)
-	api.InitAPI(requestChannel)
+	api.InitAPI(requestChannel, config)
 
 	close(requestChannel)
 	gradingJobDoneChannel <- true
