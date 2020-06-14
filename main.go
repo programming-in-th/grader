@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 
 	"github.com/programming-in-th/grader/api"
@@ -28,13 +27,9 @@ func initGrader(config conf.Config) {
 	gradingJobDoneChannel := make(chan bool)
 	gradingJobChannel := grader.NewGradingJobQueue(2, gradingJobDoneChannel, config)
 
-	// Init HTTP Handlers
+	// Init handlers
 	go submissionWorker(requestChannel, gradingJobChannel, config)
-
-	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
-		api.HandleHTTPSubmitRequest(&w, r, requestChannel)
-	})
-	http.ListenAndServe(":11112", nil) // TODO: set to localhost only
+	api.InitAPI(requestChannel)
 
 	close(requestChannel)
 	gradingJobDoneChannel <- true
