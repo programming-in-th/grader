@@ -41,6 +41,8 @@ type GlobalConfiguration struct {
 	CompileConfiguration []LangCompileConfiguration
 	DefaultMessages      map[string]string
 	IsolateBinPath       string
+	ListenPort           int
+	UpdatePort           int
 }
 
 type Config struct {

@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
+
+	"github.com/programming-in-th/grader/conf"
 )
 
 type GradingRequest struct {
@@ -13,7 +16,7 @@ type GradingRequest struct {
 	Code         []string
 }
 
-func HandleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest) {
+func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest) {
 	var request GradingRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -26,4 +29,11 @@ func HandleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan Gr
 	ch <- request
 
 	(*w).Write([]byte("Successfully submission: " + request.SubmissionID))
+}
+
+func InitAPI(ch chan GradingRequest, config conf.Config) {
+	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
+		handleHTTPSubmitRequest(&w, r, ch)
+	})
+	http.ListenAndServe("localhost:"+strconv.Itoa(config.Glob.ListenPort), nil)
 }
