@@ -115,21 +115,21 @@ func GradeSubmission(submissionID string,
 	targLang string,
 	code []string,
 	gradingJobChannel chan GradingJob,
-	syncClientChannel chan api.SyncMessage,
+	syncUpdateChannel chan api.SyncUpdateMessage,
 	config conf.Config) error {
 
-	api.SendCompilingMessage(submissionID, syncClientChannel)
+	api.SendCompilingMessage(submissionID, syncUpdateChannel)
 
 	taskBasePath := path.Join(config.BasePath, "tasks")
 
 	langConfig := conf.GetLangCompileConfig(config, targLang)
 	if langConfig == nil {
-		api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 		return errors.New("Language not supported")
 	}
 
 	if len(code) == 0 {
-		api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 		return errors.New("Code passed in is empty")
 	}
 
@@ -139,7 +139,7 @@ func GradeSubmission(submissionID string,
 		srcFilePaths[i] = path.Join(BASE_SRC_PATH, submissionID+"_"+strconv.Itoa(i)+"."+langConfig.Extension)
 		err := ioutil.WriteFile(srcFilePaths[i], []byte(code[i]), 0644)
 		if err != nil {
-			api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 			return errors.Wrapf(err, "Cannot copy source code into tmp directory: %s", srcFilePaths[i])
 		}
 	}
@@ -155,14 +155,14 @@ func GradeSubmission(submissionID string,
 	manifestPath := path.Join(taskBasePath, taskID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath, config)
 	if err != nil {
-		api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 		return errors.Wrap(err, "Error reading manifest file")
 	}
 
 	// Create tmp directory for submission
 	err = util.CreateDirIfNotExist(path.Join(BASE_TMP_PATH, submissionID))
 	if err != nil {
-		api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 		return errors.Wrap(err, "Error creating working tmp folder")
 	}
 
@@ -180,7 +180,7 @@ func GradeSubmission(submissionID string,
 		}
 	}
 	if !langSupportContainsTargLang {
-		api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 		return errors.New("Language not supported")
 	}
 
@@ -199,17 +199,17 @@ func GradeSubmission(submissionID string,
 		var compileSuccessful bool
 		compileSuccessful, userBinPath = compileSubmission(submissionID, taskID, srcFilePaths, langConfig.CompileCommands)
 		if !compileSuccessful {
-			api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 			return nil
 		}
 	} else {
 		if len(srcFilePaths) > 1 {
-			api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 			return errors.New("Language not supported")
 		}
 		err := os.Rename(srcFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
 		if err != nil {
-			api.SendCompilationErrorMessage(submissionID, syncClientChannel)
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 			return errors.Wrap(err, "Failed to move source file into user_bin")
 		}
 		// TODO: support more than one file. For now, just move the one file into the user_bin directory
@@ -260,7 +260,7 @@ func GradeSubmission(submissionID string,
 				gradingJobChannel <- GradingJob{manifestInstance, submissionID, targLang, userBinPath, idx, resultChannel}
 				currResult := <-resultChannel
 				currGroupResult.TestResults[idx-manifestInstance.Groups[i].TestIndices.Start] = currResult
-				api.SendJudgedTestMessage(submissionID, idx, syncClientChannel)
+				api.SendJudgedTestMessage(submissionID, idx, syncUpdateChannel)
 				wg.Done()
 			}(testIndex)
 		}
@@ -294,10 +294,10 @@ func GradeSubmission(submissionID string,
 		}
 		currGroupResult.Score = score
 		groupResults = append(groupResults, currGroupResult)
-		api.SendGroupResult(submissionID, currGroupResult, syncClientChannel)
+		api.SendGroupResult(submissionID, currGroupResult, syncUpdateChannel)
 	}
 
-	api.SendJudgingCompleteMessage(submissionID, syncClientChannel)
+	api.SendJudgingCompleteMessage(submissionID, syncUpdateChannel)
 
 	return nil
 }

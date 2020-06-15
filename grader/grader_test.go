@@ -29,7 +29,7 @@ func TestGradeSubmission(t *testing.T) {
 	gc := conf.InitConfig("/home/szawinis/testing")
 	done := make(chan bool)
 	jobQueue := NewGradingJobQueue(2, done, gc)
-	ch := make(chan api.SyncMessage)
+	ch := make(chan api.SyncUpdateMessage)
 	err := GradeSubmission("submissionID", "rectsum", "cpp14", src, jobQueue, ch, gc)
 	if err != nil {
 		t.Error("Error grading submission")
