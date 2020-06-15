@@ -10,48 +10,52 @@ import (
 )
 
 type GradingRequest struct {
-	SubmissionID string
-	TaskID       string
-	TargLang     string
-	Code         []string
+	SubmissionID      string
+	TaskID            string
+	TargLang          string
+	Code              []string
+	SyncClientChannel chan SyncMessage
 }
 
-type message struct {
+type SyncMessage struct {
 	SubmissionID string
 	Message      interface{}
 }
 
-func sendUpdateToSyncClient(message interface{}) {
-	log.Println(message)
-	// TODO
+func listenAndUpdateSync(ch chan SyncMessage, port int) {
+	for {
+		message := <-ch
+		log.Println(message)
+	}
 }
 
-func SendGroupResult(submissionID string, groupStatus interface{}) {
-	sendUpdateToSyncClient(message{submissionID, groupStatus})
+func SendGroupResult(submissionID string, groupStatus interface{}, ch chan SyncMessage) {
+	ch <- SyncMessage{submissionID, groupStatus}
 }
 
-func SendJudgingCompleteMessage(submissionID string) {
-	sendUpdateToSyncClient(message{submissionID, "Complete"})
+func SendJudgingCompleteMessage(submissionID string, ch chan SyncMessage) {
+	ch <- SyncMessage{submissionID, "Complete"}
 }
 
-func SendJudgingOnTestMessage(submissionID string, testIndex int) {
-	sendUpdateToSyncClient(message{submissionID, "Judging on test #" + strconv.Itoa(testIndex)})
+func SendJudgedTestMessage(submissionID string, testIndex int, ch chan SyncMessage) {
+	ch <- SyncMessage{submissionID, "Judged test #" + strconv.Itoa(testIndex)}
 }
 
-func SendCompilationErrorMessage(submissionID string) {
-	sendUpdateToSyncClient(message{submissionID, "Compilation Error"})
+func SendCompilationErrorMessage(submissionID string, ch chan SyncMessage) {
+	ch <- SyncMessage{submissionID, "Compilation Error"}
 }
 
-func SendCompilingMessage(submissionID string) {
-	sendUpdateToSyncClient(message{submissionID, "Compiling"})
+func SendCompilingMessage(submissionID string, ch chan SyncMessage) {
+	ch <- SyncMessage{submissionID, "Compiling"}
 }
 
-func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest) {
+func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest, syncClientChannel chan SyncMessage) {
 	var request GradingRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		http.Error(*w, err.Error(), http.StatusBadRequest)
 	}
+	request.SyncClientChannel = syncClientChannel
 
 	log.Println("New request with submission ID", request.SubmissionID)
 
@@ -62,8 +66,10 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan Gr
 }
 
 func InitAPI(ch chan GradingRequest, config conf.Config) {
+	syncClientChannel := make(chan SyncMessage)
+	go listenAndUpdateSync(syncClientChannel, config.Glob.UpdatePort)
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
-		handleHTTPSubmitRequest(&w, r, ch)
+		handleHTTPSubmitRequest(&w, r, ch, syncClientChannel)
 	})
 	http.ListenAndServe("localhost:"+strconv.Itoa(config.Glob.ListenPort), nil)
 }

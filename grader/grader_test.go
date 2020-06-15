@@ -5,6 +5,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/programming-in-th/grader/api"
 	"github.com/programming-in-th/grader/conf"
 )
 
@@ -28,11 +29,11 @@ func TestGradeSubmission(t *testing.T) {
 	gc := conf.InitConfig("/home/szawinis/testing")
 	done := make(chan bool)
 	jobQueue := NewGradingJobQueue(2, done, gc)
-	submissionResult, err := GradeSubmission("submissionID", "rectsum", "cpp14", src, jobQueue, gc)
+	ch := make(chan api.SyncMessage)
+	err := GradeSubmission("submissionID", "rectsum", "cpp14", src, jobQueue, ch, gc)
 	if err != nil {
 		t.Error("Error grading submission")
 	}
-	t.Log(submissionResult)
 
 }
 

@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/programming-in-th/grader/api"
 	"github.com/programming-in-th/grader/conf"
 	"github.com/programming-in-th/grader/isolate"
 )
@@ -33,9 +32,6 @@ func waitForTestResult(manifestInstance taskManifest,
 	config conf.Config,
 	boxIDPool *safeBoxIDPool,
 ) SingleTestResult {
-
-	api.SendJudgingOnTestMessage(submissionID, testIndex)
-
 	// Convert time and memory limits
 	var timeLimit float64
 	var memoryLimit int
