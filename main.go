@@ -45,8 +45,10 @@ func submissionWorker(requestChannel chan api.GradingRequest, gradingJobChannel 
 				// TODO: do something with the error
 				log.Println(err)
 			}
+			if !result.CompileSuccessful {
+				api.SendCompilationErrorMessage(request.SubmissionID)
+			}
 			log.Println(result)
-			// TODO: do something with result (post to firestore)
 		}
 	}
 }

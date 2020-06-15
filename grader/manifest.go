@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/api"
 	"github.com/programming-in-th/grader/conf"
 	"github.com/programming-in-th/grader/util"
 )
@@ -30,16 +31,17 @@ type ListedSubmissionResult struct {
 
 // SingleTestResult denotes the metrics for one single test
 type SingleTestResult struct {
-	Verdict     string
-	Score       string
-	TimeElapsed float64
-	MemoryUsage int
-	Message     string
+	Verdict string
+	Score   string
+	Time    float64
+	Memory  int
+	Message string
 }
 
 // SingleGroupResults denotes the metrics for one single group (comprised of many tests)
 type SingleGroupResult struct {
 	Score       float64
+	FullScore   float64
 	TestResults []SingleTestResult
 }
 
@@ -122,6 +124,9 @@ func GradeSubmission(submissionID string,
 	code []string,
 	gradingJobChannel chan GradingJob,
 	config conf.Config) (*GroupedSubmissionResult, error) {
+
+	api.SendCompilingMessage(submissionID)
+
 	taskBasePath := path.Join(config.BasePath, "tasks")
 
 	langConfig := conf.GetLangCompileConfig(config, targLang)
@@ -219,7 +224,11 @@ func GradeSubmission(submissionID string,
 	groupResults := GroupedSubmissionResult{CompileSuccessful: true, GroupedSuccessful: true, Score: 0}
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 
-		currGroupResult := SingleGroupResult{Score: -1, TestResults: make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start)}
+		currGroupResult := SingleGroupResult{
+			Score:       -1,
+			FullScore:   manifestInstance.Groups[i].FullScore,
+			TestResults: make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start),
+		}
 
 		// If a dependency is not satisfied, skip the entire group
 		foundInvalid := false
@@ -283,7 +292,10 @@ func GradeSubmission(submissionID string,
 		currGroupResult.Score = score
 		groupResults.Score += score
 		groupResults.GroupResults = append(groupResults.GroupResults, currGroupResult)
+		api.SendGroupResult(submissionID, currGroupResult)
 	}
+
+	api.SendJudgingCompleteMessage(submissionID)
 
 	return &groupResults, nil
 }

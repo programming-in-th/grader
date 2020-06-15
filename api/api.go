@@ -16,6 +16,36 @@ type GradingRequest struct {
 	Code         []string
 }
 
+type message struct {
+	SubmissionID string
+	Message      interface{}
+}
+
+func sendUpdateToSyncClient(message interface{}) {
+	log.Println(message)
+	// TODO
+}
+
+func SendGroupResult(submissionID string, groupStatus interface{}) {
+	sendUpdateToSyncClient(message{submissionID, groupStatus})
+}
+
+func SendJudgingCompleteMessage(submissionID string) {
+	sendUpdateToSyncClient(message{submissionID, "Complete"})
+}
+
+func SendJudgingOnTestMessage(submissionID string, testIndex int) {
+	sendUpdateToSyncClient(message{submissionID, "Judging on test #" + strconv.Itoa(testIndex)})
+}
+
+func SendCompilationErrorMessage(submissionID string) {
+	sendUpdateToSyncClient(message{submissionID, "Compilation Error"})
+}
+
+func SendCompilingMessage(submissionID string) {
+	sendUpdateToSyncClient(message{submissionID, "Compiling"})
+}
+
 func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest) {
 	var request GradingRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
@@ -28,7 +58,7 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan Gr
 	// Send request to submission worker
 	ch <- request
 
-	(*w).Write([]byte("Successfully submission: " + request.SubmissionID))
+	(*w).Write([]byte("Successfull submission: " + request.SubmissionID))
 }
 
 func InitAPI(ch chan GradingRequest, config conf.Config) {
