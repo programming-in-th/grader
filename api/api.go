@@ -1,11 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
 
+	"github.com/pkg/errors"
 	"github.com/programming-in-th/grader/conf"
 )
 
@@ -22,10 +24,22 @@ type SyncUpdateMessage struct {
 	Message      interface{}
 }
 
+// This is endpoint where messages finally get send to the sync client
 func listenAndUpdateSync(ch chan SyncUpdateMessage, port int) {
 	for {
 		message := <-ch
 		log.Println(message)
+		requestBody, err := json.Marshal(message)
+		if err != nil {
+			log.Fatal(errors.Wrap(err, "Sync update message not serializable"))
+		}
+		resp, err := http.Post("http://localhost:"+strconv.Itoa(port), "application/json", bytes.NewBuffer(requestBody))
+		if err != nil {
+			log.Println(errors.Wrap(err, "Unable to send sync update message"))
+		}
+		if resp.StatusCode != 200 {
+			log.Printf("Non-OK response code from sync client: %d", resp.StatusCode)
+		}
 	}
 }
 
