@@ -1,7 +1,6 @@
 package isolate
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -140,7 +139,6 @@ func (instance *Instance) buildIsolateArguments() []string {
 		args = append(args, []string{"-i", instance.isolateInputName}...)
 		args = append(args, []string{"-o", instance.isolateOutputName}...)
 	}
-	fmt.Println(args)
 	return args
 }
 

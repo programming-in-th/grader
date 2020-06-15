@@ -59,7 +59,7 @@ The default message to display in the last line of the checker's output for verd
 
 The location of the sandbox binary (named "isolate") must be specified, in case it is installed in a non-standard location. Specify this with the IsolateBinPath field.
 
-The "ListenPort" and "UpdatePort" fields are used to specify the ports on which to receive and send updates to and from the sync client respectively.
+The "SyncListenPort" and "SyncUpdatePort" fields are used to specify the ports on which to receive and send updates from and to the sync client respectively.
 
 A sample global configuration is as follows:
 ```json
@@ -86,8 +86,8 @@ A sample global configuration is as follows:
     "Judge Error": "Judge killed: internal error"
   },
   "IsolateBinPath": "/usr/bin/isolate",
-  "ListenPort": 11112,
-  "UpdatePort": 11111
+  "SyncListenPort": 11112,
+  "SyncUpdatePort": 11111
 }
 ```
 

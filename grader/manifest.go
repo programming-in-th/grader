@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/api"
 	"github.com/programming-in-th/grader/conf"
 	"github.com/programming-in-th/grader/util"
 )
@@ -30,25 +31,18 @@ type ListedSubmissionResult struct {
 
 // SingleTestResult denotes the metrics for one single test
 type SingleTestResult struct {
-	Verdict     string
-	Score       string
-	TimeElapsed float64
-	MemoryUsage int
-	Message     string
+	Verdict string
+	Score   string
+	Time    float64
+	Memory  int
+	Message string
 }
 
 // SingleGroupResults denotes the metrics for one single group (comprised of many tests)
 type SingleGroupResult struct {
 	Score       float64
+	FullScore   float64
 	TestResults []SingleTestResult
-}
-
-// GroupedSubmissionResult denotes the test results for all groups
-type GroupedSubmissionResult struct {
-	CompileSuccessful bool
-	GroupedSuccessful bool
-	Score             float64
-	GroupResults      []SingleGroupResult
 }
 
 /* MANIFEST TYPES */
@@ -121,16 +115,22 @@ func GradeSubmission(submissionID string,
 	targLang string,
 	code []string,
 	gradingJobChannel chan GradingJob,
-	config conf.Config) (*GroupedSubmissionResult, error) {
+	syncUpdateChannel chan api.SyncUpdateMessage,
+	config conf.Config) error {
+
+	api.SendCompilingMessage(submissionID, syncUpdateChannel)
+
 	taskBasePath := path.Join(config.BasePath, "tasks")
 
 	langConfig := conf.GetLangCompileConfig(config, targLang)
 	if langConfig == nil {
-		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Language not supported")
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+		return errors.New("Language not supported")
 	}
 
 	if len(code) == 0 {
-		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Code passed in is empty")
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+		return errors.New("Code passed in is empty")
 	}
 
 	// Copy source code into tmp directory
@@ -139,7 +139,8 @@ func GradeSubmission(submissionID string,
 		srcFilePaths[i] = path.Join(BASE_SRC_PATH, submissionID+"_"+strconv.Itoa(i)+"."+langConfig.Extension)
 		err := ioutil.WriteFile(srcFilePaths[i], []byte(code[i]), 0644)
 		if err != nil {
-			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrapf(err, "Cannot copy source code into tmp directory: %s", srcFilePaths[i])
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+			return errors.Wrapf(err, "Cannot copy source code into tmp directory: %s", srcFilePaths[i])
 		}
 	}
 
@@ -154,13 +155,15 @@ func GradeSubmission(submissionID string,
 	manifestPath := path.Join(taskBasePath, taskID, "manifest.json")
 	manifestInstance, err := readManifestFromFile(manifestPath, config)
 	if err != nil {
-		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Error reading manifest file")
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+		return errors.Wrap(err, "Error reading manifest file")
 	}
 
 	// Create tmp directory for submission
 	err = util.CreateDirIfNotExist(path.Join(BASE_TMP_PATH, submissionID))
 	if err != nil {
-		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Error creating working tmp folder")
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+		return errors.Wrap(err, "Error creating working tmp folder")
 	}
 
 	// Check if target language is supported
@@ -177,7 +180,8 @@ func GradeSubmission(submissionID string,
 		}
 	}
 	if !langSupportContainsTargLang {
-		return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Language not supported")
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+		return errors.New("Language not supported")
 	}
 
 	// Add compile files to srcFilePaths after defer statement so it doesn't delete
@@ -195,15 +199,18 @@ func GradeSubmission(submissionID string,
 		var compileSuccessful bool
 		compileSuccessful, userBinPath = compileSubmission(submissionID, taskID, srcFilePaths, langConfig.CompileCommands)
 		if !compileSuccessful {
-			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, nil
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+			return nil
 		}
 	} else {
 		if len(srcFilePaths) > 1 {
-			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.New("Language not supported")
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+			return errors.New("Language not supported")
 		}
 		err := os.Rename(srcFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
 		if err != nil {
-			return &GroupedSubmissionResult{CompileSuccessful: false, GroupedSuccessful: false}, errors.Wrap(err, "Failed to move source file into user_bin")
+			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+			return errors.Wrap(err, "Failed to move source file into user_bin")
 		}
 		// TODO: support more than one file. For now, just move the one file into the user_bin directory
 	}
@@ -216,16 +223,21 @@ func GradeSubmission(submissionID string,
 
 	log.Printf("%#v", manifestInstance.Groups)
 
-	groupResults := GroupedSubmissionResult{CompileSuccessful: true, GroupedSuccessful: true, Score: 0}
+	groupResults := make([]SingleGroupResult, 0)
+	allGroupsGroupedSucessfully := true
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 
-		currGroupResult := SingleGroupResult{Score: -1, TestResults: make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start)}
+		currGroupResult := SingleGroupResult{
+			Score:       -1,
+			FullScore:   manifestInstance.Groups[i].FullScore,
+			TestResults: make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start),
+		}
 
 		// If a dependency is not satisfied, skip the entire group
 		foundInvalid := false
 		numTests := manifestInstance.Groups[i].TestIndices.End - manifestInstance.Groups[i].TestIndices.Start
 		for _, j := range manifestInstance.Groups[i].Dependencies {
-			if !groupResults.GroupedSuccessful || groupResults.GroupResults[j].Score == 0 {
+			if !allGroupsGroupedSucessfully || groupResults[j].Score == 0 {
 				foundInvalid = true
 				break
 			}
@@ -235,7 +247,7 @@ func GradeSubmission(submissionID string,
 			for j := 0; j < numTests; j++ {
 				currGroupResult.TestResults = append(currGroupResult.TestResults, SingleTestResult{conf.SKVerdict, "0", 0, 0, ""})
 			}
-			groupResults.GroupResults = append(groupResults.GroupResults, currGroupResult)
+			groupResults = append(groupResults, currGroupResult)
 			continue
 		}
 
@@ -248,7 +260,7 @@ func GradeSubmission(submissionID string,
 				gradingJobChannel <- GradingJob{manifestInstance, submissionID, targLang, userBinPath, idx, resultChannel}
 				currResult := <-resultChannel
 				currGroupResult.TestResults[idx-manifestInstance.Groups[i].TestIndices.Start] = currResult
-				log.Printf("Test #%d done", idx)
+				api.SendJudgedTestMessage(submissionID, idx, syncUpdateChannel)
 				wg.Done()
 			}(testIndex)
 		}
@@ -271,19 +283,21 @@ func GradeSubmission(submissionID string,
 
 		if err != nil {
 			log.Print(errors.Wrapf(err, "Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID))
-			groupResults.GroupedSuccessful = false
+			allGroupsGroupedSucessfully = false
 			grouperOutput = []byte("0") // fall through
 		}
 		score, err := strconv.ParseFloat(strings.TrimSpace(string(grouperOutput)), 64)
 		if err != nil {
 			log.Print(errors.Wrapf(err, "Grouper failed for task %s on submission ID %s", manifestInstance.ID, submissionID))
-			groupResults.GroupedSuccessful = false
+			allGroupsGroupedSucessfully = false
 			score = 0
 		}
 		currGroupResult.Score = score
-		groupResults.Score += score
-		groupResults.GroupResults = append(groupResults.GroupResults, currGroupResult)
+		groupResults = append(groupResults, currGroupResult)
+		api.SendGroupResult(submissionID, currGroupResult, syncUpdateChannel)
 	}
 
-	return &groupResults, nil
+	api.SendJudgingCompleteMessage(submissionID, syncUpdateChannel)
+
+	return nil
 }

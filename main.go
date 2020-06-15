@@ -40,13 +40,11 @@ func submissionWorker(requestChannel chan api.GradingRequest, gradingJobChannel 
 	for {
 		select {
 		case request := <-requestChannel:
-			result, err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, gradingJobChannel, config)
+			err := grader.GradeSubmission(request.SubmissionID, request.TaskID, request.TargLang, request.Code, gradingJobChannel, request.SyncUpdateChannel, config)
 			if err != nil {
 				// TODO: do something with the error
 				log.Println(err)
 			}
-			log.Println(result)
-			// TODO: do something with result (post to firestore)
 		}
 	}
 }
