@@ -20,15 +20,6 @@ import (
 const BASE_TMP_PATH = "/tmp/grader"
 const BASE_SRC_PATH = BASE_TMP_PATH + "/source"
 
-// ListedSubmissionResult contains information about the result of a submission
-type ListedSubmissionResult struct {
-	CompileSuccessful bool     // If this is set to false, the other fields will be undefined
-	Verdicts          []string // verdicts for each test case in each group
-	Scores            []float64
-	TimeElapsed       []float64 // time elapsed for each test case in each group
-	MemoryUsage       []int     // memory usage for each test case in each group
-}
-
 // SingleTestResult denotes the metrics for one single test
 type SingleTestResult struct {
 	Verdict string
