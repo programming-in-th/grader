@@ -16,26 +16,59 @@ type GradingRequest struct {
 	TaskID            string
 	TargLang          string
 	Code              []string
-	SyncUpdateChannel chan SyncUpdateMessage
+	SyncUpdateChannel chan SyncUpdate
+}
+
+type syncUpdatePayloadType string
+
+const msgUpdateType syncUpdatePayloadType = "msg"
+const groupUpdateType syncUpdatePayloadType = "group"
+
+type SyncUpdate struct {
+	payloadType  syncUpdatePayloadType
+	submissionID string
+	payload      interface{}
 }
 
 type SyncUpdateMessage struct {
 	SubmissionID string
-	Message      interface{}
+	Message      string
+}
+
+type SyncUpdateGroup struct {
+	SubmissionID string
+	Results      interface{}
 }
 
 // This is endpoint where messages finally get send to the sync client
-func listenAndUpdateSync(ch chan SyncUpdateMessage, port int) {
+func listenAndUpdateSync(ch chan SyncUpdate, port int) {
 	for {
 		message := <-ch
-		log.Println(message)
-		requestBody, err := json.Marshal(message)
-		if err != nil {
-			log.Fatal(errors.Wrap(err, "Sync update message not serializable"))
+
+		var requestBody []byte
+		var err error
+
+		baseURL := "http://localhost:" + strconv.Itoa(port)
+		if message.payloadType == msgUpdateType {
+			baseURL += "/message"
+			requestBody, err = json.Marshal(SyncUpdateMessage{message.submissionID, message.payload.(string)})
+			if err != nil {
+				log.Fatal(errors.Wrap(err, "Sync update not serializable"))
+			}
+		} else if message.payloadType == groupUpdateType {
+			baseURL += "/group"
+			requestBody, err = json.Marshal(SyncUpdateGroup{message.submissionID, message.payload})
+			if err != nil {
+				log.Fatal(errors.Wrap(err, "Sync update not serializable"))
+			}
+		} else {
+			log.Fatal("Unsupported payload type")
 		}
-		resp, err := http.Post("http://localhost:"+strconv.Itoa(port), "application/json", bytes.NewBuffer(requestBody))
+
+		log.Println(string(requestBody))
+		resp, err := http.Post(baseURL, "application/json", bytes.NewBuffer(requestBody))
 		if err != nil {
-			log.Println(errors.Wrap(err, "Unable to send sync update message"))
+			log.Println(errors.Wrap(err, "Unable to send sync update"))
 		}
 		if resp.StatusCode != 200 {
 			log.Printf("Non-OK response code from sync client: %d", resp.StatusCode)
@@ -43,27 +76,27 @@ func listenAndUpdateSync(ch chan SyncUpdateMessage, port int) {
 	}
 }
 
-func SendGroupResult(submissionID string, groupStatus interface{}, ch chan SyncUpdateMessage) {
-	ch <- SyncUpdateMessage{submissionID, groupStatus}
+func SendGroupResult(submissionID string, groupStatus interface{}, ch chan SyncUpdate) {
+	ch <- SyncUpdate{groupUpdateType, submissionID, groupStatus}
 }
 
-func SendJudgingCompleteMessage(submissionID string, ch chan SyncUpdateMessage) {
-	ch <- SyncUpdateMessage{submissionID, "Complete"}
+func SendJudgingCompleteMessage(submissionID string, ch chan SyncUpdate) {
+	ch <- SyncUpdate{msgUpdateType, submissionID, "Complete"}
 }
 
-func SendJudgedTestMessage(submissionID string, testIndex int, ch chan SyncUpdateMessage) {
-	ch <- SyncUpdateMessage{submissionID, "Judged test #" + strconv.Itoa(testIndex)}
+func SendJudgedTestMessage(submissionID string, testIndex int, ch chan SyncUpdate) {
+	ch <- SyncUpdate{msgUpdateType, submissionID, "Judged test #" + strconv.Itoa(testIndex)}
 }
 
-func SendCompilationErrorMessage(submissionID string, ch chan SyncUpdateMessage) {
-	ch <- SyncUpdateMessage{submissionID, "Compilation Error"}
+func SendCompilationErrorMessage(submissionID string, ch chan SyncUpdate) {
+	ch <- SyncUpdate{msgUpdateType, submissionID, "Compilation Error"}
 }
 
-func SendCompilingMessage(submissionID string, ch chan SyncUpdateMessage) {
-	ch <- SyncUpdateMessage{submissionID, "Compiling"}
+func SendCompilingMessage(submissionID string, ch chan SyncUpdate) {
+	ch <- SyncUpdate{msgUpdateType, submissionID, "Compiling"}
 }
 
-func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest, syncUpdateChannel chan SyncUpdateMessage) {
+func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest, syncUpdateChannel chan SyncUpdate) {
 	var request GradingRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -80,7 +113,7 @@ func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan Gr
 }
 
 func InitAPI(ch chan GradingRequest, config conf.Config) {
-	syncUpdateChannel := make(chan SyncUpdateMessage)
+	syncUpdateChannel := make(chan SyncUpdate)
 	go listenAndUpdateSync(syncUpdateChannel, config.Glob.SyncUpdatePort)
 	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
 		handleHTTPSubmitRequest(&w, r, ch, syncUpdateChannel)

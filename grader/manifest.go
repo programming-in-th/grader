@@ -115,7 +115,7 @@ func GradeSubmission(submissionID string,
 	targLang string,
 	code []string,
 	gradingJobChannel chan GradingJob,
-	syncUpdateChannel chan api.SyncUpdateMessage,
+	syncUpdateChannel chan api.SyncUpdate,
 	config conf.Config) error {
 
 	api.SendCompilingMessage(submissionID, syncUpdateChannel)
