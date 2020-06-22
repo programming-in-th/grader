@@ -3,6 +3,7 @@ package isolate
 import (
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path"
@@ -71,6 +72,9 @@ func NewInstance(
 	memoryLimit int,
 	resultOutputFile string,
 	inputFile string) *Instance {
+
+	timeLimit = math.Round(timeLimit*1000) / 1000
+	extraTime = math.Round(extraTime*1000) / 1000
 
 	return &Instance{
 		isolateExecPath:        isolateExecPath,
@@ -227,7 +231,8 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 		log.Println("Log file has incorrect format")
 		return IsolateRunOther, RunMetrics{}
 	}
-	timeElapsed, err := strconv.ParseFloat(timeElapsedString, 64)
+	timeElapsedUnrounded, err := strconv.ParseFloat(timeElapsedString, 64)
+	timeElapsed := math.Round(timeElapsedUnrounded*1000) / 1000
 	if err != nil {
 		log.Println("Log file has incorrect format")
 		return IsolateRunOther, RunMetrics{}
