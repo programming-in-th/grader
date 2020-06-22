@@ -2,6 +2,7 @@ package isolate
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -150,9 +151,8 @@ func (instance *Instance) checkXX(props map[string]string) bool {
 func (instance *Instance) checkTLE(props map[string]string) (bool, bool) {
 	timeElapsedString, timeExists := props["time"]
 	status := strings.TrimSpace(props["status"])
-	killed := strings.TrimSpace(props["killed"])
-	timeElapsed, err := strconv.ParseFloat(timeElapsedString, 64)
-	if !timeExists || err != nil || (timeElapsed > instance.timeLimit && !(killed == "1" && status == "TO")) {
+	_, err := strconv.ParseFloat(timeElapsedString, 64)
+	if !timeExists || err != nil {
 		return false, true // second parameter denotes whether or not log file is corrupted
 	}
 	return status == "TO", false
@@ -192,6 +192,7 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	// Read and parse log file into a map
 	logFileBytes, err := ioutil.ReadFile(instance.logFile)
 	if err != nil {
+		log.Println("Cannot read log file")
 		return IsolateRunOther, RunMetrics{}
 	}
 	contents := string(logFileBytes)
@@ -202,6 +203,7 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 		}
 		pair := strings.Split(line, ":")
 		if len(pair) != 2 {
+			log.Println("Log file has incorrect format")
 			return IsolateRunOther, RunMetrics{}
 		}
 		props[strings.TrimSpace(pair[0])] = strings.TrimSpace(pair[1])
@@ -217,17 +219,17 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	timeElapsedString, timeElapsedExists := props["time"]
 	_, wallTimeElapsedExists := props["time-wall"]
 	if !memoryUsageExists || !timeElapsedExists || !wallTimeElapsedExists {
+		log.Println("Log file has incorrect format")
 		return IsolateRunOther, RunMetrics{}
 	}
 	memoryUsage, err := strconv.Atoi(memoryUsageString)
 	if err != nil {
+		log.Println("Log file has incorrect format")
 		return IsolateRunOther, RunMetrics{}
 	}
 	timeElapsed, err := strconv.ParseFloat(timeElapsedString, 64)
 	if err != nil {
-		return IsolateRunOther, RunMetrics{}
-	}
-	if err != nil {
+		log.Println("Log file has incorrect format")
 		return IsolateRunOther, RunMetrics{}
 	}
 	metricObject := RunMetrics{TimeElapsed: timeElapsed, MemoryUsage: memoryUsage}
@@ -237,6 +239,7 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 		// IMPORTANT: copy output out of isolate directory
 		err = exec.Command("cp", path.Join(instance.isolateDirectory, instance.isolateOutputName), instance.resultOutputTargetPath).Run()
 		if err != nil {
+			log.Println("Cannot copy output out of isolate directory")
 			return IsolateRunOther, RunMetrics{}
 		}
 		return IsolateRunOK, metricObject
@@ -247,13 +250,16 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	} else if code == 2 {
 		return IsolateRunRE, metricObject
 	} else if code == -1 {
+		log.Println("Log file has incorrect format")
 		return IsolateRunOther, RunMetrics{}
 	}
 	if tle, logFileCorrupted := instance.checkTLE(props); tle {
 		return IsolateRunTLE, metricObject
 	} else if logFileCorrupted {
+		log.Println("Log file corrupted")
 		return IsolateRunOther, RunMetrics{}
 	}
+	log.Println("Verdict unknown")
 	return IsolateRunOther, RunMetrics{}
 }
 
