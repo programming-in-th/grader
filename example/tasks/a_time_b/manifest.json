@@ -2,7 +2,7 @@
   "ID": "a_time_b",
   "DefaultLimits": { "TimeLimit": 1, "MemoryLimit": 64 },
   "Limits": {},
-  "Checker": "ncmp",
+  "Checker": "lcmp",
   "Grouper": "min",
   "Groups": [
     {
