@@ -85,7 +85,7 @@ func SendJudgingCompleteMessage(submissionID string, ch chan SyncUpdate) {
 }
 
 func SendJudgedTestMessage(submissionID string, testIndex int, ch chan SyncUpdate) {
-	ch <- SyncUpdate{msgUpdateType, submissionID, "Judged test #" + strconv.Itoa(testIndex)}
+	ch <- SyncUpdate{msgUpdateType, submissionID, "Judged test #" + strconv.Itoa(testIndex+1)}
 }
 
 func SendCompilationErrorMessage(submissionID string, ch chan SyncUpdate) {

@@ -9,7 +9,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/programming-in-th/grader/api"
@@ -243,19 +242,22 @@ func GradeSubmission(submissionID string,
 		}
 
 		// Otherwise, judge all tests within that group
-		var wg sync.WaitGroup
-		wg.Add(numTests)
 		resultChannel := make(chan SingleTestResult)
+		willSkip := false
 		for testIndex := manifestInstance.Groups[i].TestIndices.Start; testIndex < manifestInstance.Groups[i].TestIndices.End; testIndex++ {
-			go func(idx int) {
-				gradingJobChannel <- GradingJob{manifestInstance, submissionID, targLang, userBinPath, idx, resultChannel}
+			if !willSkip {
+				gradingJobChannel <- GradingJob{manifestInstance, submissionID, targLang, userBinPath, testIndex, resultChannel}
 				currResult := <-resultChannel
-				currGroupResult.TestResults[idx-manifestInstance.Groups[i].TestIndices.Start] = currResult
-				api.SendJudgedTestMessage(submissionID, idx, syncUpdateChannel)
-				wg.Done()
-			}(testIndex)
+				currGroupResult.TestResults[testIndex-manifestInstance.Groups[i].TestIndices.Start] = currResult
+				api.SendJudgedTestMessage(submissionID, testIndex, syncUpdateChannel)
+				if currResult.Verdict != conf.ACVerdict && currResult.Verdict != conf.PartialVerdict {
+					willSkip = true
+				}
+			} else {
+				currGroupResult.TestResults[testIndex-manifestInstance.Groups[i].TestIndices.Start] = SingleTestResult{conf.SKVerdict, "0", 0, 0, ""}
+				api.SendJudgedTestMessage(submissionID, testIndex, syncUpdateChannel)
+			}
 		}
-		wg.Wait()
 
 		// Run grouper
 		var grouperPath string
