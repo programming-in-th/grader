@@ -54,7 +54,7 @@ const (
 
 // RunMetrics contains info on time and memory usage after running isolate
 type RunMetrics struct {
-	TimeElapsed float64
+	TimeElapsed int
 	MemoryUsage int
 }
 
@@ -232,7 +232,7 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 		return IsolateRunOther, RunMetrics{}
 	}
 	timeElapsedUnrounded, err := strconv.ParseFloat(timeElapsedString, 64)
-	timeElapsed := math.Round(timeElapsedUnrounded*1000) / 1000
+	timeElapsed := int(math.Round(timeElapsedUnrounded * 1000))
 	if err != nil {
 		log.Println("Log file has incorrect format")
 		return IsolateRunOther, RunMetrics{}

@@ -23,7 +23,7 @@ const BASE_SRC_PATH = BASE_TMP_PATH + "/source"
 type SingleTestResult struct {
 	Verdict string
 	Score   string
-	Time    float64
+	Time    int
 	Memory  int
 	Message string
 }
