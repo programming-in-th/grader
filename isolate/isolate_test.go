@@ -21,5 +21,8 @@ func TestIsolate(t *testing.T) {
 	verdict, metrics := instance.Run()
 	t.Log(verdict)
 	t.Log(metrics)
-	instance.Cleanup()
+	err = instance.Cleanup()
+	if err != nil {
+		t.Log(err)
+	}
 }
