@@ -13,7 +13,7 @@ for i in range(start_test, end_test+1):
     f = open(targ_path, "r")
     lines = f.read().split("\n")
     f.close()
-    score = int(lines[1])
+    score = float(lines[1])
     if result == -1 or score < result:
         result = score
 print(result * full_score / 100)
