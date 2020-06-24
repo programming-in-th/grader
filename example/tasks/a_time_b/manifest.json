@@ -1,0 +1,25 @@
+{
+  "ID": "a_time_b",
+  "DefaultLimits": { "TimeLimit": 1, "MemoryLimit": 64 },
+  "Limits": {},
+  "Checker": "lcmp",
+  "Grouper": "min",
+  "Groups": [
+    {
+      "FullScore": 30,
+      "TestIndices": {
+        "Start": 1,
+        "End": 5
+      }
+    },
+    {
+      "FullScore": 70,
+      "Dependencies": [1],
+      "TestIndices": {
+        "Start": 6,
+        "End": 10
+      }
+    }
+  ],
+  "CompileFiles": {}
+}

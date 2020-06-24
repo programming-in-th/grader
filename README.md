@@ -241,7 +241,7 @@ Judging Error
 
 ### Default Checkers
 
-Default checkers are provided with the grader that can easily be used by specifying them as the checker in task manifests. This removes the hassle of having to write checkers for typical tasks. All checkers output the verdict in the first line, a score out of 10 for the second line, and the default message of the corresponding verdict on the third line. If first line "Correct", then the second line will be 10. Otherwise, it will be 0. Note that default checkers will never emit the "Partially Correct" verdict. Each default checker will only emit the "Correct" verdict if all tokens match between the user's output and the solution's output.
+Default checkers are provided with the grader that can easily be used by specifying them as the checker in task manifests. This removes the hassle of having to write checkers for typical tasks. All checkers output the verdict in the first line, a score out of 100 for the second line, and the default message of the corresponding verdict on the third line. If first line "Correct", then the second line will be 100. Otherwise, it will be 0. Note that default checkers will never emit the "Partially Correct" verdict. Each default checker will only emit the "Correct" verdict if all tokens match between the user's output and the solution's output.
 
 Each default checker will split output into tokens as follows:
 
@@ -270,7 +270,7 @@ Note that the grouper should access /tmp/grader/{submissionID}/{testIndex}.check
 
 ### Default Groupers
 
-Just as there are default checkers, there are also default groupers provided with the grader. For all default graders, the second line of the **checker output** must be a **floating point number out of 10**, indicating the score achieved on the test scaled out of 10. These will then be rescaled to be out of the full score of the corresponding test group. Note that **all default checkers already conform to this standard**
+Just as there are default checkers, there are also default groupers provided with the grader. For all default graders, the second line of the **checker output** must be a **floating point number out of 100**, indicating the score achieved on the test scaled out of 10. These will then be rescaled to be out of the full score of the corresponding test group. Note that **all default checkers already conform to this standard**
 
 How each default grouper scores a test group:
 
