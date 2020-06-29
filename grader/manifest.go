@@ -193,16 +193,9 @@ func GradeSubmission(submissionID string,
 			return nil
 		}
 	} else {
-		if len(srcFilePaths) > 1 {
-			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
-			return errors.New("Language not supported")
-		}
-		err := os.Rename(srcFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
-		if err != nil {
-			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
-			return errors.Wrap(err, "Failed to move source file into user_bin")
-		}
-		// TODO: support more than one file. For now, just move the one file into the user_bin directory
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+		log.Println("Compiled failed: langauge not supported")
+		return nil
 	}
 
 	// Remove user output file to not clutter up disk
