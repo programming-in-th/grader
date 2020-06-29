@@ -56,11 +56,7 @@ The global configuration is stored in the file globalConfig.json at the root of 
 
 - ID: indicates the ID of the language. These must be unique, as different versions of the same language will be identified by this ID later in the manifest file (see Manifest Format).
 - Extension: indicates the corresponding file extension for the language
-- Type: specifies whether the language is a compiled or interpreted language. Takes on values of "compiled" and "interpreted"
-
-Otherwise if Type is "interpreted", the field "InterpreterPath" is required, which is a string denoting the path to the given interpreter. This will be added as the first line in the user's source code as `#!{InterpreterPath}`.
-
-If Type is "compiled", the field "CompileCommands" is required, which an array of strings indicating the commands and arguments to be run in the shell for compiling the user's source code, each string being individual tokens in the command.
+- CompileCommands: an array of strings indicating the commands and arguments tot be run in the shell for compiling the user's source code, each string being individual tokens in the command.
 
 To denote the user's source code, simply add "\$SRC" as an element in the array. Note that if there are any library files specified in CompileFiles in manifest.json (see Manifest Format), they will be inserted into the command where "\SRC" is as a space-separated string along with the path to the user's source code. You must also add "\$BIN" in the array to denote the argument that indicates the path to the output executable.
 
@@ -78,20 +74,15 @@ A sample global configuration is as follows:
     {
       "ID": "cpp14",
       "Extension": "cpp",
-      "Type": "compiled",
       "CompileCommands": ["/usr/bin/c++", "--std=c++14", "$SRC"]
     },
     {
       "ID": "python3",
-      "Extension": "py",
-      "Type": "interpreted",
-      "InterpreterPath": "/usr/local/bin/python3"
+      "Extension": "py"
     },
     {
       "ID": "python2",
-      "Extension": "py",
-      "Type": "interpreted",
-      "InterpreterPath": "/usr/bin/python"
+      "Extension": "py"
     }
   ],
   "DefaultMessages": {
