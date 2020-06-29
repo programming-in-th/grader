@@ -45,7 +45,7 @@ func runIsolate(
 		1,
 		"/tmp/tmp_isolate_grader_"+strconv.Itoa(boxID),
 		timeLimit,
-		timeLimit*2,
+		timeLimit+1,
 		memoryLimit,
 		outputPath,
 		inputPath,
