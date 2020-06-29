@@ -3,24 +3,17 @@
     {
       "ID": "cpp14",
       "Extension": "cpp",
-      "Type": "compiled",
       "CompileCommands": [
         "/usr/bin/c++",
         "--std=c++14",
-        "-O2",
-        "-lm",
-        "-static",
+        "-O2", 
+        "-lm", 
+        "-static", 
         "-DEVAL",
         "$USER_SRC",
         "-o",
         "$USER_BIN"
       ]
-    },
-    {
-      "ID": "python3",
-      "Extension": "py",
-      "Type": "interpreted",
-      "InterpreterPath": "/usr/local/bin/python3"
     }
   ],
   "DefaultMessages": {
