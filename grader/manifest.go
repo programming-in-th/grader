@@ -88,7 +88,7 @@ func readManifestFromFile(manifestPath string, config conf.Config) (taskManifest
 		for j := 0; j < len(manifestInstance.Groups[i].Dependencies); j++ {
 			manifestInstance.Groups[i].Dependencies[j] -= 1
 		}
-		manifestInstance.Groups[i].FullScore = math.Round(manifestInstance.Groups[i]*100) / 100
+		manifestInstance.Groups[i].FullScore = math.Round(manifestInstance.Groups[i].FullScore*100) / 100
 		manifestInstance.Groups[i].TestIndices.Start -= 1
 		// Leave .End as is because we want it to be exclusive
 	}
