@@ -97,6 +97,8 @@ func SendCompilingMessage(submissionID string, ch chan SyncUpdate) {
 }
 
 func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest, syncUpdateChannel chan SyncUpdate) {
+	defer r.Body.Close()
+
 	var request GradingRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
