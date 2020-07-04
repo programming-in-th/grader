@@ -27,6 +27,7 @@ func writeCheckFile(submissionID string, testCaseIndex int, verdict string, scor
 	if err != nil {
 		log.Fatal("Error during checking. Cannot create .check file")
 	}
+	checkerFile.Close()
 }
 
 func runChecker(submissionID string,
