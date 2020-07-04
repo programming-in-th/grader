@@ -66,12 +66,9 @@ func listenAndUpdateSync(ch chan SyncUpdate, port int) {
 		}
 
 		log.Println(string(requestBody))
-		resp, err := http.Post(baseURL, "application/json", bytes.NewBuffer(requestBody))
+		_, err = http.Post(baseURL, "application/json", bytes.NewBuffer(requestBody))
 		if err != nil {
 			log.Println(errors.Wrap(err, "Unable to send sync update"))
-		}
-		if resp.StatusCode != 200 {
-			log.Printf("Non-OK response code from sync client: %d", resp.StatusCode)
 		}
 	}
 }
