@@ -83,11 +83,12 @@ func readManifestFromFile(manifestPath string, config conf.Config) (taskManifest
 		return taskManifest{}, errors.Wrapf(err, "Failed to unmarshal manifest.json from file at %s", manifestPath)
 	}
 
-	// Decrease indices for easier handling
+	// Decrease indices for easier handling and round full score
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 		for j := 0; j < len(manifestInstance.Groups[i].Dependencies); j++ {
 			manifestInstance.Groups[i].Dependencies[j] -= 1
 		}
+		manifestInstance.Groups[i].FullScore = math.Round(manifestInstance.Groups[i]*100) / 100
 		manifestInstance.Groups[i].TestIndices.Start -= 1
 		// Leave .End as is because we want it to be exclusive
 	}
