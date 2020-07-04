@@ -4,36 +4,38 @@ import (
 	"log"
 	"os/exec"
 	"path"
+	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/programming-in-th/grader/conf"
 )
 
 // Compiles user source into one file according to arguments in manifest.json
-func compileSubmission(submissionID string, taskID string, sourceFilePaths []string, langConfigCompileCommands []string) (bool, string) {
-	// Regexp gets contents of first [i] match including brackets
-	sourceFileIndex := 0
-	compileCommands := make([]string, len(langConfigCompileCommands))
-	copy(compileCommands, langConfigCompileCommands)
-	for i, arg := range compileCommands {
-		if len(arg) != 9 {
-			continue
-		}
-		if arg[:9] == "$USER_SRC" {
-			if sourceFileIndex == len(sourceFilePaths) {
-				log.Println("Compile error: too many $USER_SRC but not enough source files.")
-				return false, ""
-			}
-			compileCommands[i] = sourceFilePaths[sourceFileIndex]
-			sourceFileIndex++
-		} else if arg[:9] == "$USER_BIN" {
-			compileCommands[i] = path.Join(BASE_TMP_PATH, submissionID, "bin")
-		}
+func compileSubmission(submissionID string, taskID string, targLang string, srcPaths []string, config conf.Config) (bool, string) {
+	args := []string{
+		"-c",
+		path.Join(config.BasePath, "config", "compileScripts", targLang),
+		path.Join(BASE_TMP_PATH, submissionID),
 	}
-	err := exec.Command(compileCommands[0], compileCommands[1:]...).Run()
+	args = append(args, srcPaths...)
+
+	out, err := exec.Command("/bin/sh", args...).Output()
 	if err != nil {
-		log.Println(errors.Wrap(err, "Compile error. Make sure source files are valid paths and manifest.json is using absolute paths only"))
-		log.Println("Compile commands:", compileCommands)
+		log.Println(errors.Wrap(err, "Compile error: error executing compile script"))
 		return false, ""
 	}
-	return true, path.Join(BASE_TMP_PATH, submissionID, "bin")
+	out_lines := strings.Split(string(out), "\n")
+	for i := 0; i < 2; i++ {
+		out_lines[i] = strings.TrimSpace(out_lines[i])
+	}
+	if len(out_lines) != 2 {
+		log.Println(errors.Wrap(err, "Compile error: compile script output is invalid"))
+	}
+	// Get return code from stdout
+	returnCode, err := strconv.Atoi(string(out_lines[0]))
+	if err != nil {
+		log.Println(errors.Wrap(err, "Compile error: compile script output is invalid"))
+	}
+	return returnCode == 0, out_lines[1]
 }

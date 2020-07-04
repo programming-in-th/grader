@@ -31,18 +31,17 @@ const (
 	SKVerdict string = "Skipped"
 )
 
-type LangCompileConfiguration struct {
-	ID              string
-	Extension       string
-	CompileCommands []string
+type LangConfiguration struct {
+	ID        string
+	Extension string
 }
 
 type GlobalConfiguration struct {
-	CompileConfiguration []LangCompileConfiguration
-	DefaultMessages      map[string]string
-	IsolateBinPath       string
-	SyncListenPort       int
-	SyncUpdatePort       int
+	LangConfig      []LangConfiguration
+	DefaultMessages map[string]string
+	IsolateBinPath  string
+	SyncListenPort  int
+	SyncUpdatePort  int
 }
 
 type Config struct {
@@ -52,11 +51,11 @@ type Config struct {
 
 var PossibleCheckerVerdicts = []string{ACVerdict, PartialVerdict, WAVerdict, IEVerdict}
 
-func GetLangCompileConfig(config Config, targLang string) *LangCompileConfiguration {
+func GetLangCompileConfig(config Config, targLang string) *LangConfiguration {
 	// Find target language's compile configuration
 	foundLang := false
-	var langConfig LangCompileConfiguration
-	for _, langConfig = range config.Glob.CompileConfiguration {
+	var langConfig LangConfiguration
+	for _, langConfig = range config.Glob.LangConfig {
 		if langConfig.ID == targLang {
 			foundLang = true
 			break

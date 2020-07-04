@@ -184,31 +184,15 @@ func GradeSubmission(submissionID string,
 	// Compile program and return CE if fail
 	// TODO: Handle other languages that don't need compiling
 	// TODO: Compile fails without absolute paths
-	var userBinPath string
-	if langConfig.CompileCommands != nil && len(langConfig.CompileCommands) != 0 {
-		var compileSuccessful bool
-		compileSuccessful, userBinPath = compileSubmission(submissionID, taskID, srcFilePaths, langConfig.CompileCommands)
-		if !compileSuccessful {
-			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
-			return nil
-		}
-	} else {
-		if len(srcFilePaths) > 1 {
-			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
-			return errors.New("Language not supported")
-		}
-		err := os.Rename(srcFilePaths[0], path.Join(BASE_TMP_PATH, submissionID, "bin"))
-		if err != nil {
-			api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
-			return errors.Wrap(err, "Failed to move source file into user_bin")
-		}
-		// TODO: support more than one file. For now, just move the one file into the user_bin directory
+	compileSuccessful, userBinPath := compileSubmission(submissionID, taskID, targLang, srcFilePaths, config)
+	if !compileSuccessful {
+		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
+		return nil
 	}
 
 	// Remove user output file to not clutter up disk
 	defer func() {
 		os.RemoveAll(path.Join(BASE_TMP_PATH, submissionID))
-		os.Remove(userBinPath)
 	}()
 
 	log.Printf("%#v", manifestInstance.Groups)

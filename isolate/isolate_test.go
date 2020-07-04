@@ -13,6 +13,7 @@ func TestIsolate(t *testing.T) {
 		512000,
 		"/home/proggrader/output",
 		"/home/proggrader/testcases/tasks/o61_may08_estate/inputs/19.in",
+		"/home/proggrader/testcases/config/runnerScripts/cpp14",
 	)
 	err := instance.Init()
 	if err != nil {

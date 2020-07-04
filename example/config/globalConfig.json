@@ -1,19 +1,12 @@
 {
-  "CompileConfiguration": [
+  "LangConfig": [
     {
       "ID": "cpp14",
-      "Extension": "cpp",
-      "CompileCommands": [
-        "/usr/bin/c++",
-        "--std=c++14",
-        "-O2", 
-        "-lm", 
-        "-static", 
-        "-DEVAL",
-        "$USER_SRC",
-        "-o",
-        "$USER_BIN"
-      ]
+      "Extension": "cpp"
+    },
+    {
+      "ID": "python3",
+      "Extension": "py"
     }
   ],
   "DefaultMessages": {

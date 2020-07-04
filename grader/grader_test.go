@@ -60,8 +60,9 @@ func TestRunIsolate(t *testing.T) {
 		"/home/proggrader/testcases/tasks/o61_may08_estate/inputs/19.in",
 		"/home/proggrader/output",
 		"/usr/local/bin/isolate",
+		"/home/proggrader/testcases/config/runnerScripts/cpp14",
 		&boxIDPool,
-		)
+	)
 	t.Log(result)
 }
 
@@ -69,7 +70,7 @@ func TestCompile(t *testing.T) {
 	gc := conf.InitConfig("/home/szawinis/testing")
 	src := make([]string, 1)
 	src[0] = "/home/szawinis/testing/rectsum_test.cpp"
-	successful, binPath := compileSubmission("submissionID", "rectsum", src, gc.Glob.CompileConfiguration[0].CompileCommands)
+	successful, binPath := compileSubmission("submissionID", "rectsum", "cpp14", src, gc)
 	t.Log("Compile success?", successful)
 	t.Log("User binary path:", binPath)
 }

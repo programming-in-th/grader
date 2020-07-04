@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,7 +22,6 @@ type Instance struct {
 	isolateExecPath        string
 	boxID                  int
 	userProgramPath        string
-	boxBinaryName          string
 	ioMode                 int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
 	logFile                string // Can be both absolute and relative path
 	timeLimit              float64
@@ -32,6 +32,7 @@ type Instance struct {
 	isolateOutputName      string // Relative to box directory and must be within box directory as per isolate specs
 	resultOutputTargetPath string // Target path of output file after copying out of box directory
 	inputPath              string // Path to input file from test case
+	runnerScriptPath       string // Path to runner script
 }
 
 // RunVerdict denotes possible states after isolate run
@@ -71,7 +72,8 @@ func NewInstance(
 	extraTime float64,
 	memoryLimit int,
 	resultOutputFile string,
-	inputFile string) *Instance {
+	inputFile string,
+	runnerScriptPath string) *Instance {
 
 	timeLimit = math.Round(timeLimit*1000) / 1000
 	extraTime = math.Round(extraTime*1000) / 1000
@@ -89,7 +91,7 @@ func NewInstance(
 		isolateOutputName:      "output",
 		resultOutputTargetPath: strings.TrimSpace(resultOutputFile),
 		inputPath:              strings.TrimSpace(inputFile),
-		boxBinaryName:          "program",
+		runnerScriptPath:       strings.TrimSpace(runnerScriptPath),
 	}
 }
 
@@ -118,9 +120,13 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 	if err != nil {
 		return errors.Wrap(err, "Unable to copy input file into box directory")
 	}
-	err = exec.Command("cp", instance.userProgramPath, path.Join(instance.isolateDirectory, instance.boxBinaryName)).Run()
+	err = exec.Command("cp", instance.userProgramPath, path.Join(instance.isolateDirectory)).Run()
 	if err != nil {
-		return errors.Wrap(err, "Unable to copy exec file into box directory")
+		return errors.Wrap(err, "Unable to copy user exec file into box directory")
+	}
+	err = exec.Command("cp", instance.runnerScriptPath, path.Join(instance.isolateDirectory)).Run()
+	if err != nil {
+		return errors.Wrap(err, "Unable to copy runner script into box directory")
 	}
 	return nil
 }
@@ -185,7 +191,8 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 // Run runs isolate on an Instance
 func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	// Run isolate --run
-	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.boxBinaryName}...)
+	_, runnerScriptName := filepath.Split(instance.runnerScriptPath)
+	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", runnerScriptName}...)
 	var exitCode int
 	if err := exec.Command(instance.isolateExecPath, args...).Run(); err != nil {
 		exitCode = err.(*exec.ExitError).Sys().(syscall.WaitStatus).ExitStatus()

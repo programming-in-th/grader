@@ -51,6 +51,7 @@ func waitForTestResult(manifestInstance taskManifest,
 		path.Join(manifestInstance.inputsBasePath, strconv.Itoa(testIndex+1)+".in"),
 		path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testIndex+1)+".out"),
 		config.Glob.IsolateBinPath,
+		path.Join(config.BasePath, "config", "runnerScripts", targLang),
 		boxIDPool,
 	)
 

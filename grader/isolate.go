@@ -22,6 +22,7 @@ func runIsolate(
 	inputPath string,
 	outputPath string,
 	isolateBinPath string,
+	runnerScriptPath string,
 	boxIDPool *safeBoxIDPool,
 ) isolateTestResult {
 	// Find minimum excludant in box ID pool
@@ -49,6 +50,7 @@ func runIsolate(
 		memoryLimit,
 		outputPath,
 		inputPath,
+		runnerScriptPath,
 	)
 
 	err := instance.Init()
