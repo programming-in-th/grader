@@ -66,10 +66,11 @@ func listenAndUpdateSync(ch chan SyncUpdate, port int) {
 		}
 
 		log.Println(string(requestBody))
-		_, err = http.Post(baseURL, "application/json", bytes.NewBuffer(requestBody))
+		r, err := http.Post(baseURL, "application/json", bytes.NewBuffer(requestBody))
 		if err != nil {
 			log.Println(errors.Wrap(err, "Unable to send sync update"))
 		}
+		r.Body.Close()
 	}
 }
 
