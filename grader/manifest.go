@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path"
@@ -285,7 +286,7 @@ func GradeSubmission(submissionID string,
 			allGroupsGroupedSucessfully = false
 			score = 0
 		}
-		currGroupResult.Score = score
+		currGroupResult.Score = math.Round(score*100) / 100
 		groupResults = append(groupResults, currGroupResult)
 		api.SendGroupResult(submissionID, currGroupResult, syncUpdateChannel)
 	}
