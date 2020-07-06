@@ -319,7 +319,8 @@ func GradeSubmission(submissionID string,
 			runningMemory = maxCurrGroupMemory
 		}
 
-		currGroupResult.Score = math.Round(score) // CAREFUL: round of AFTER adding to running score
+		runningScore = math.Round(runningScore)
+		currGroupResult.Score = math.Round(score*100) / 100 // CAREFUL: round of AFTER adding to running score
 		groupResults = append(groupResults, currGroupResult)
 
 		currPrefixGroupResult := PrefixGroupResult{runningScore, runningTime, runningMemory, groupResults}
