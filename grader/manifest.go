@@ -40,7 +40,7 @@ type PrefixGroupResult struct {
 	Score           float64
 	Time            int
 	Memory          int
-	CurrGroupResult SingleGroupResult
+	CurrGroupResult []SingleGroupResult
 }
 
 /* MANIFEST TYPES */
@@ -320,7 +320,7 @@ func GradeSubmission(submissionID string,
 		currGroupResult.Score = math.Round(score*100) / 100 // CAREFUL: round of AFTER adding to running score
 		groupResults = append(groupResults, currGroupResult)
 
-		currPrefixGroupResult := PrefixGroupResult{runningScore, runningTime, runningMemory, currGroupResult}
+		currPrefixGroupResult := PrefixGroupResult{runningScore, runningTime, runningMemory, groupResults}
 		api.SendPrefixGroupResult(submissionID, currPrefixGroupResult, syncUpdateChannel)
 	}
 
