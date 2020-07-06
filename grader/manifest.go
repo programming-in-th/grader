@@ -309,7 +309,7 @@ func GradeSubmission(submissionID string,
 		}
 
 		// Update metrics for prefix of groups
-		runningScore += currGroupResult.Score
+		runningScore += score
 		if runningTime > maxCurrGroupTime {
 			runningTime = maxCurrGroupTime
 		}
