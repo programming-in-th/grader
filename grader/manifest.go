@@ -37,10 +37,10 @@ type SingleGroupResult struct {
 }
 
 type PrefixGroupResult struct {
-	Score           float64
-	Time            int
-	Memory          int
-	CurrGroupResult []SingleGroupResult
+	Score        float64
+	Time         int
+	Memory       int
+	GroupResults []SingleGroupResult
 }
 
 /* MANIFEST TYPES */
@@ -319,7 +319,7 @@ func GradeSubmission(submissionID string,
 			runningMemory = maxCurrGroupMemory
 		}
 
-		currGroupResult.Score = math.Round(score*100) / 100 // CAREFUL: round of AFTER adding to running score
+		currGroupResult.Score = math.Round(score) // CAREFUL: round of AFTER adding to running score
 		groupResults = append(groupResults, currGroupResult)
 
 		currPrefixGroupResult := PrefixGroupResult{runningScore, runningTime, runningMemory, groupResults}
