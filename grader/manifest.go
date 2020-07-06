@@ -31,9 +31,9 @@ type SingleTestResult struct {
 
 // SingleGroupResult denotes the metrics for one single group (comprised of many tests)
 type SingleGroupResult struct {
-	Score       float64
-	FullScore   float64
-	TestResults []SingleTestResult
+	Score     float64
+	FullScore float64
+	Status    []SingleTestResult
 }
 
 type PrefixGroupResult struct {
@@ -230,9 +230,9 @@ func GradeSubmission(submissionID string,
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 
 		currGroupResult := SingleGroupResult{
-			Score:       -1,
-			FullScore:   manifestInstance.Groups[i].FullScore,
-			TestResults: make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start),
+			Score:     -1,
+			FullScore: manifestInstance.Groups[i].FullScore,
+			Status:    make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start),
 		}
 
 		// If a dependency is not satisfied, skip the entire group
@@ -247,7 +247,7 @@ func GradeSubmission(submissionID string,
 		if foundInvalid {
 			currGroupResult.Score = 0
 			for j := 0; j < numTests; j++ {
-				currGroupResult.TestResults = append(currGroupResult.TestResults, SingleTestResult{conf.SKVerdict, "0", 0, 0, ""})
+				currGroupResult.Status = append(currGroupResult.Status, SingleTestResult{conf.SKVerdict, "0", 0, 0, ""})
 			}
 			groupResults = append(groupResults, currGroupResult)
 			continue
@@ -260,13 +260,13 @@ func GradeSubmission(submissionID string,
 			if !willSkip {
 				gradingJobChannel <- GradingJob{manifestInstance, submissionID, targLang, userBinPath, testIndex, resultChannel}
 				currResult := <-resultChannel
-				currGroupResult.TestResults[testIndex-manifestInstance.Groups[i].TestIndices.Start] = currResult
+				currGroupResult.Status[testIndex-manifestInstance.Groups[i].TestIndices.Start] = currResult
 				api.SendJudgedTestMessage(submissionID, testIndex, syncUpdateChannel)
 				if currResult.Verdict != conf.ACVerdict && currResult.Verdict != conf.PartialVerdict {
 					willSkip = true
 				}
 			} else {
-				currGroupResult.TestResults[testIndex-manifestInstance.Groups[i].TestIndices.Start] = SingleTestResult{conf.SKVerdict, "0", 0, 0, ""}
+				currGroupResult.Status[testIndex-manifestInstance.Groups[i].TestIndices.Start] = SingleTestResult{conf.SKVerdict, "0", 0, 0, ""}
 				api.SendJudgedTestMessage(submissionID, testIndex, syncUpdateChannel)
 			}
 		}
@@ -301,7 +301,7 @@ func GradeSubmission(submissionID string,
 		// Compute max group time and memory
 		maxCurrGroupTime := 0
 		maxCurrGroupMemory := 0
-		for _, currTestResult := range currGroupResult.TestResults {
+		for _, currTestResult := range currGroupResult.Status {
 			if currTestResult.Time > maxCurrGroupTime {
 				maxCurrGroupTime = currTestResult.Time
 				maxCurrGroupMemory = currTestResult.Memory
