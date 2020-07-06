@@ -29,11 +29,18 @@ type SingleTestResult struct {
 	Message string
 }
 
-// SingleGroupResults denotes the metrics for one single group (comprised of many tests)
+// SingleGroupResult denotes the metrics for one single group (comprised of many tests)
 type SingleGroupResult struct {
 	Score       float64
 	FullScore   float64
 	TestResults []SingleTestResult
+}
+
+type PrefixGroupResult struct {
+	Score           float64
+	Time            int
+	Memory          int
+	CurrGroupResult SingleGroupResult
 }
 
 /* MANIFEST TYPES */
@@ -216,6 +223,9 @@ func GradeSubmission(submissionID string,
 	log.Printf("%#v", manifestInstance.Groups)
 
 	groupResults := make([]SingleGroupResult, 0)
+	runningScore := 0.0
+	runningTime := 0
+	runningMemory := 0
 	allGroupsGroupedSucessfully := true
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 
@@ -287,9 +297,31 @@ func GradeSubmission(submissionID string,
 			allGroupsGroupedSucessfully = false
 			score = 0
 		}
-		currGroupResult.Score = math.Round(score*100) / 100
+
+		// Compute max group time and memory
+		maxCurrGroupTime := 0
+		maxCurrGroupMemory := 0
+		for _, currTestResult := range currGroupResult.TestResults {
+			if currTestResult.Time > maxCurrGroupTime {
+				maxCurrGroupTime = currTestResult.Time
+				maxCurrGroupMemory = currTestResult.Memory
+			}
+		}
+
+		// Update metrics for prefix of groups
+		runningScore += currGroupResult.Score
+		if runningTime > maxCurrGroupTime {
+			runningTime = maxCurrGroupTime
+		}
+		if runningMemory > maxCurrGroupMemory {
+			runningMemory = maxCurrGroupMemory
+		}
+
+		currGroupResult.Score = math.Round(score*100) / 100 // CAREFUL: round of AFTER adding to running score
 		groupResults = append(groupResults, currGroupResult)
-		api.SendGroupResult(submissionID, currGroupResult, syncUpdateChannel)
+
+		currPrefixGroupResult := PrefixGroupResult{runningScore, runningTime, runningMemory, currGroupResult}
+		api.SendPrefixGroupResult(submissionID, currPrefixGroupResult, syncUpdateChannel)
 	}
 
 	api.SendJudgingCompleteMessage(submissionID, syncUpdateChannel)

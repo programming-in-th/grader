@@ -74,8 +74,8 @@ func listenAndUpdateSync(ch chan SyncUpdate, port int) {
 	}
 }
 
-func SendGroupResult(submissionID string, groupStatus interface{}, ch chan SyncUpdate) {
-	ch <- SyncUpdate{groupUpdateType, submissionID, groupStatus}
+func SendPrefixGroupResult(submissionID string, prefixGroupStatus interface{}, ch chan SyncUpdate) {
+	ch <- SyncUpdate{groupUpdateType, submissionID, prefixGroupStatus}
 }
 
 func SendJudgingCompleteMessage(submissionID string, ch chan SyncUpdate) {
