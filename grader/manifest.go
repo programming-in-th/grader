@@ -304,16 +304,18 @@ func GradeSubmission(submissionID string,
 		for _, currTestResult := range currGroupResult.Status {
 			if currTestResult.Time > maxCurrGroupTime {
 				maxCurrGroupTime = currTestResult.Time
+			}
+			if currTestResult.Memory > maxCurrGroupMemory {
 				maxCurrGroupMemory = currTestResult.Memory
 			}
 		}
 
 		// Update metrics for prefix of groups
 		runningScore += score
-		if runningTime > maxCurrGroupTime {
+		if maxCurrGroupTime > runningTime {
 			runningTime = maxCurrGroupTime
 		}
-		if runningMemory > maxCurrGroupMemory {
+		if maxCurrGroupMemory > runningMemory {
 			runningMemory = maxCurrGroupMemory
 		}
 
