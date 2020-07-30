@@ -13,16 +13,16 @@ import (
 
 // Compiles user source into one file according to arguments in manifest.json
 func compileSubmission(submissionID string, taskID string, targLang string, srcPaths []string, config conf.Config) (bool, string) {
-	args := []string{
-		"-c",
-		path.Join(config.BasePath, "config", "compileScripts", targLang),
-		path.Join(BASE_TMP_PATH, submissionID),
-	}
+	args := []string{path.Join(BASE_TMP_PATH, submissionID)}
 	args = append(args, srcPaths...)
-
-	out, err := exec.Command("/bin/sh", args...).Output()
+	out, err := exec.Command(
+		path.Join(config.BasePath, "config", "compileScripts", targLang),
+		args...,
+	).Output()
 	if err != nil {
 		log.Println(errors.Wrap(err, "Compile error: error executing compile script"))
+		log.Println("Args:", args)
+		log.Println("Output:", out)
 		return false, ""
 	}
 	out_lines := strings.Split(string(out), "\n")

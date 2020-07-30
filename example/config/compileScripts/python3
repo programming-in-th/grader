@@ -6,14 +6,14 @@ import sys
 base_dir = sys.argv[1]
 source_file = sys.argv[2]
 
-capture = subprocess.run('mv',
+capture = subprocess.run(['mv',
                          source_file,
-                         os.path.join(base_dir, 'bin'),
+                         os.path.join(base_dir, 'bin')],
                          stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT)
 
 f = open(os.path.join(base_dir, "compileMsg"), "w")
-f.write(capture.stdout)
+f.write(capture.stdout.decode("utf-8"))
 f.close()
 print(capture.returncode)
 print(os.path.join(base_dir, 'bin'))
