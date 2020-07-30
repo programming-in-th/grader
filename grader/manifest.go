@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path"
@@ -28,11 +29,18 @@ type SingleTestResult struct {
 	Message string
 }
 
-// SingleGroupResults denotes the metrics for one single group (comprised of many tests)
+// SingleGroupResult denotes the metrics for one single group (comprised of many tests)
 type SingleGroupResult struct {
-	Score       float64
-	FullScore   float64
-	TestResults []SingleTestResult
+	Score     float64
+	FullScore float64
+	Status    []SingleTestResult
+}
+
+type PrefixGroupResult struct {
+	Score        float64
+	Time         int
+	Memory       int
+	GroupResults []SingleGroupResult
 }
 
 /* MANIFEST TYPES */
@@ -82,11 +90,12 @@ func readManifestFromFile(manifestPath string, config conf.Config) (taskManifest
 		return taskManifest{}, errors.Wrapf(err, "Failed to unmarshal manifest.json from file at %s", manifestPath)
 	}
 
-	// Decrease indices for easier handling
+	// Decrease indices for easier handling and round full score
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 		for j := 0; j < len(manifestInstance.Groups[i].Dependencies); j++ {
 			manifestInstance.Groups[i].Dependencies[j] -= 1
 		}
+		manifestInstance.Groups[i].FullScore = math.Round(manifestInstance.Groups[i].FullScore*100) / 100
 		manifestInstance.Groups[i].TestIndices.Start -= 1
 		// Leave .End as is because we want it to be exclusive
 	}
@@ -198,13 +207,16 @@ func GradeSubmission(submissionID string,
 	log.Printf("%#v", manifestInstance.Groups)
 
 	groupResults := make([]SingleGroupResult, 0)
+	runningScore := 0.0
+	runningTime := 0
+	runningMemory := 0
 	allGroupsGroupedSucessfully := true
 	for i := 0; i < len(manifestInstance.Groups); i++ {
 
 		currGroupResult := SingleGroupResult{
-			Score:       -1,
-			FullScore:   manifestInstance.Groups[i].FullScore,
-			TestResults: make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start),
+			Score:     -1,
+			FullScore: manifestInstance.Groups[i].FullScore,
+			Status:    make([]SingleTestResult, manifestInstance.Groups[i].TestIndices.End-manifestInstance.Groups[i].TestIndices.Start),
 		}
 
 		// If a dependency is not satisfied, skip the entire group
@@ -219,7 +231,7 @@ func GradeSubmission(submissionID string,
 		if foundInvalid {
 			currGroupResult.Score = 0
 			for j := 0; j < numTests; j++ {
-				currGroupResult.TestResults = append(currGroupResult.TestResults, SingleTestResult{conf.SKVerdict, "0", 0, 0, ""})
+				currGroupResult.Status = append(currGroupResult.Status, SingleTestResult{conf.SKVerdict, "0", 0, 0, ""})
 			}
 			groupResults = append(groupResults, currGroupResult)
 			continue
@@ -232,13 +244,13 @@ func GradeSubmission(submissionID string,
 			if !willSkip {
 				gradingJobChannel <- GradingJob{manifestInstance, submissionID, targLang, userBinPath, testIndex, resultChannel}
 				currResult := <-resultChannel
-				currGroupResult.TestResults[testIndex-manifestInstance.Groups[i].TestIndices.Start] = currResult
+				currGroupResult.Status[testIndex-manifestInstance.Groups[i].TestIndices.Start] = currResult
 				api.SendJudgedTestMessage(submissionID, testIndex, syncUpdateChannel)
 				if currResult.Verdict != conf.ACVerdict && currResult.Verdict != conf.PartialVerdict {
 					willSkip = true
 				}
 			} else {
-				currGroupResult.TestResults[testIndex-manifestInstance.Groups[i].TestIndices.Start] = SingleTestResult{conf.SKVerdict, "0", 0, 0, ""}
+				currGroupResult.Status[testIndex-manifestInstance.Groups[i].TestIndices.Start] = SingleTestResult{conf.SKVerdict, "0", 0, 0, ""}
 				api.SendJudgedTestMessage(submissionID, testIndex, syncUpdateChannel)
 			}
 		}
@@ -269,9 +281,33 @@ func GradeSubmission(submissionID string,
 			allGroupsGroupedSucessfully = false
 			score = 0
 		}
-		currGroupResult.Score = score
+
+		// Compute max group time and memory
+		maxCurrGroupTime := 0
+		maxCurrGroupMemory := 0
+		for _, currTestResult := range currGroupResult.Status {
+			if currTestResult.Time > maxCurrGroupTime {
+				maxCurrGroupTime = currTestResult.Time
+			}
+			if currTestResult.Memory > maxCurrGroupMemory {
+				maxCurrGroupMemory = currTestResult.Memory
+			}
+		}
+
+		// Update metrics for prefix of groups
+		runningScore += score
+		if maxCurrGroupTime > runningTime {
+			runningTime = maxCurrGroupTime
+		}
+		if maxCurrGroupMemory > runningMemory {
+			runningMemory = maxCurrGroupMemory
+		}
+
+		currGroupResult.Score = math.Round(score*100) / 100 // CAREFUL: round of AFTER adding to running score
 		groupResults = append(groupResults, currGroupResult)
-		api.SendGroupResult(submissionID, currGroupResult, syncUpdateChannel)
+
+		currPrefixGroupResult := PrefixGroupResult{math.Round(runningScore), runningTime, runningMemory, groupResults}
+		api.SendPrefixGroupResult(submissionID, currPrefixGroupResult, syncUpdateChannel)
 	}
 
 	api.SendJudgingCompleteMessage(submissionID, syncUpdateChannel)

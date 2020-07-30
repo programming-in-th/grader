@@ -1,8 +1,8 @@
 package grader
 
 import (
+	"io/ioutil"
 	"log"
-	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -19,11 +19,8 @@ type checkerResult struct {
 }
 
 func writeCheckFile(submissionID string, testCaseIndex int, verdict string, score string, message string) {
-	checkerFile, err := os.Create(path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex+1)+".check"))
-	if err != nil {
-		log.Fatal("Error during checking. Cannot create .check file")
-	}
-	_, err = checkerFile.WriteString(verdict + "\n" + score + "\n" + message)
+	checkFilePath := path.Join(BASE_TMP_PATH, submissionID, strconv.Itoa(testCaseIndex+1)+".check")
+	err := ioutil.WriteFile(checkFilePath, []byte(verdict+"\n"+score+"\n"+message), 0644)
 	if err != nil {
 		log.Fatal("Error during checking. Cannot create .check file")
 	}

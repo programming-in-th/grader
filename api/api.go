@@ -66,18 +66,16 @@ func listenAndUpdateSync(ch chan SyncUpdate, port int) {
 		}
 
 		log.Println(string(requestBody))
-		resp, err := http.Post(baseURL, "application/json", bytes.NewBuffer(requestBody))
+		r, err := http.Post(baseURL, "application/json", bytes.NewBuffer(requestBody))
 		if err != nil {
 			log.Println(errors.Wrap(err, "Unable to send sync update"))
 		}
-		if resp.StatusCode != 200 {
-			log.Printf("Non-OK response code from sync client: %d", resp.StatusCode)
-		}
+		r.Body.Close()
 	}
 }
 
-func SendGroupResult(submissionID string, groupStatus interface{}, ch chan SyncUpdate) {
-	ch <- SyncUpdate{groupUpdateType, submissionID, groupStatus}
+func SendPrefixGroupResult(submissionID string, prefixGroupStatus interface{}, ch chan SyncUpdate) {
+	ch <- SyncUpdate{groupUpdateType, submissionID, prefixGroupStatus}
 }
 
 func SendJudgingCompleteMessage(submissionID string, ch chan SyncUpdate) {
@@ -97,6 +95,8 @@ func SendCompilingMessage(submissionID string, ch chan SyncUpdate) {
 }
 
 func handleHTTPSubmitRequest(w *http.ResponseWriter, r *http.Request, ch chan GradingRequest, syncUpdateChannel chan SyncUpdate) {
+	defer r.Body.Close()
+
 	var request GradingRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
