@@ -24,7 +24,7 @@ const (
 	// MLEVerdict means the program used too much memory
 	MLEVerdict string = "Memory Limit Exceeded"
 	// REVerdict means the program caused a runtime error (not including MLE)
-	REVerdict string = "Memory Limit Exceeded"
+	REVerdict string = "Runtime Error"
 	// IEVerdict means an internal error of the grader occurred
 	IEVerdict string = "Judge Error"
 	// SKVerdict means the test was skipped because a dependent group was not passed
