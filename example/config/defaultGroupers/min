@@ -10,6 +10,9 @@ end_test = int(sys.argv[4])
 result = -1
 for i in range(start_test, end_test+1):
     targ_path = os.path.join("/tmp/grader", submission_id, str(i)+".check")
+    if not os.path.exists(targ_path):
+        result = 0
+        break
     f = open(targ_path, "r")
     lines = f.read().split("\n")
     f.close()
