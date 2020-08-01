@@ -146,6 +146,10 @@ func (instance *Instance) buildIsolateArguments() []string {
 	args = append(args, []string{"-m", strconv.Itoa(instance.memoryLimit)}...)
 	args = append(args, []string{"-w", strconv.FormatFloat(instance.timeLimit+5, 'f', -1, 64)}...) // five extra seconds for wall clock
 	args = append(args, []string{"-x", strconv.FormatFloat(instance.extraTime, 'f', -1, 64)}...)
+	_, err := os.Stat("/etc/alternatives")
+	if !os.IsNotExist(err) {
+		args = append(args, "--dir=etc/alternatives") // for Java
+	}
 	if instance.ioMode == 1 {
 		args = append(args, []string{"-i", instance.isolateInputName}...)
 		args = append(args, []string{"-o", instance.isolateOutputName}...)
