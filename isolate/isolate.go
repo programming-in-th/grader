@@ -175,11 +175,10 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 	memoryUsage, err := strconv.Atoi(memoryUsageString)
 	if !maxRssExists || err != nil ||
 		((memoryUsage > instance.memoryLimit || exitSigExists || strings.TrimSpace(status) == "SG") &&
-			!(exitSigExists && status == "SG")) ||
-		(exitSigExists && strings.TrimSpace(exitSig) != "6" && strings.TrimSpace(exitSig) != "11") {
+			!(exitSigExists && status == "SG")) {
 		return -1, "" // -1 status means log file was corrupted
 	}
-	if !exitSigExists {
+	if strings.TrimSpace(status) != "RE" {
 		return 0, ""
 	} else if memoryUsage > instance.memoryLimit {
 		return 1, strings.TrimSpace(exitSig) // MLE
@@ -194,7 +193,9 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	_, runnerScriptName := filepath.Split(instance.runnerScriptPath)
 	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", runnerScriptName}...)
 	var exitCode int
-	if err := exec.Command(instance.isolateExecPath, args...).Run(); err != nil {
+	output, err := exec.Command(instance.isolateExecPath, args...).CombinedOutput()
+	log.Println(string(output))
+	if err != nil {
 		exitCode = err.(*exec.ExitError).Sys().(syscall.WaitStatus).ExitStatus()
 	} else {
 		exitCode = 0

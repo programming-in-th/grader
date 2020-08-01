@@ -1,2 +1,2 @@
 #!/bin/bash
-/usr/bin/java Main
+exec /usr/bin/java Main

@@ -1,2 +1,2 @@
 #!/bin/bash
-/usr/bin/python3 ./bin
+exec -c /usr/bin/python3 ./bin
