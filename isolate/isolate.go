@@ -178,7 +178,7 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 			!(exitSigExists && status == "SG")) {
 		return -1, "" // -1 status means log file was corrupted
 	}
-	if strings.TrimSpace(status) != "RE" {
+	if strings.TrimSpace(status) != "RE" && strings.TrimSpace(status) != "SG" {
 		return 0, ""
 	} else if memoryUsage > instance.memoryLimit {
 		return 1, strings.TrimSpace(exitSig) // MLE
