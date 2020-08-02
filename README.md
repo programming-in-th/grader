@@ -4,6 +4,9 @@
 
 Work in progress
 
+**NOTE: Always chmod all scripts (all as in scripts within every subfolder of) the config directory**
+**NOTE: README not yet complete for this version**
+
 ## Directories
 
 The general directory hierarchy of the grader is as follows:

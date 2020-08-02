@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,7 +22,6 @@ type Instance struct {
 	isolateExecPath        string
 	boxID                  int
 	userProgramPath        string
-	boxBinaryName          string
 	ioMode                 int    // 0 = user's program already handles file IO, 1 = script needs to redirect IO
 	logFile                string // Can be both absolute and relative path
 	timeLimit              float64
@@ -32,6 +32,7 @@ type Instance struct {
 	isolateOutputName      string // Relative to box directory and must be within box directory as per isolate specs
 	resultOutputTargetPath string // Target path of output file after copying out of box directory
 	inputPath              string // Path to input file from test case
+	runnerScriptPath       string // Path to runner script
 }
 
 // RunVerdict denotes possible states after isolate run
@@ -71,7 +72,8 @@ func NewInstance(
 	extraTime float64,
 	memoryLimit int,
 	resultOutputFile string,
-	inputFile string) *Instance {
+	inputFile string,
+	runnerScriptPath string) *Instance {
 
 	timeLimit = math.Round(timeLimit*1000) / 1000
 	extraTime = math.Round(extraTime*1000) / 1000
@@ -89,7 +91,7 @@ func NewInstance(
 		isolateOutputName:      "output",
 		resultOutputTargetPath: strings.TrimSpace(resultOutputFile),
 		inputPath:              strings.TrimSpace(inputFile),
-		boxBinaryName:          "program",
+		runnerScriptPath:       strings.TrimSpace(runnerScriptPath),
 	}
 }
 
@@ -105,7 +107,7 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 	}
 
 	// Run init command
-	bytes, err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--init").Output()
+	bytes, err := exec.Command(instance.isolateExecPath, "--cg", "-b", strconv.Itoa(instance.boxID), "--init").Output()
 	outputString := strings.TrimSpace(string(bytes))
 	instance.isolateDirectory = path.Join(outputString, "box")
 	if err != nil {
@@ -118,9 +120,13 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 	if err != nil {
 		return errors.Wrap(err, "Unable to copy input file into box directory")
 	}
-	err = exec.Command("cp", instance.userProgramPath, path.Join(instance.isolateDirectory, instance.boxBinaryName)).Run()
+	err = exec.Command("cp", instance.userProgramPath, path.Join(instance.isolateDirectory)).Run()
 	if err != nil {
-		return errors.Wrap(err, "Unable to copy exec file into box directory")
+		return errors.Wrap(err, "Unable to copy user exec file into box directory")
+	}
+	err = exec.Command("cp", instance.runnerScriptPath, path.Join(instance.isolateDirectory)).Run()
+	if err != nil {
+		return errors.Wrap(err, "Unable to copy runner script into box directory")
 	}
 	return nil
 }
@@ -128,18 +134,25 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 // Cleanup clears up the box directory for other instances to use
 func (instance *Instance) Cleanup() error { // returns true if finished OK, otherwise returns false
 	os.Remove(instance.logFile) // No need to catch errors on this because duplicate tmp files does nothing
-	err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
+	err := exec.Command(instance.isolateExecPath, "--cg", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
 	return err
 }
 
 func (instance *Instance) buildIsolateArguments() []string {
 	args := make([]string, 0)
+	args = append(args, "--cg")
+	args = append(args, "--cg-timing")
+	args = append(args, "--processes=128") // set to high number (like 128) for Java (issue #57 in ioi/isolate)
 	args = append(args, []string{"-b", strconv.Itoa(instance.boxID)}...)
 	args = append(args, []string{"-M", instance.logFile}...)
 	args = append(args, []string{"-t", strconv.FormatFloat(instance.timeLimit, 'f', -1, 64)}...)
-	args = append(args, []string{"-m", strconv.Itoa(instance.memoryLimit)}...)
+	args = append(args, "--cg-mem="+strconv.Itoa(instance.memoryLimit))
 	args = append(args, []string{"-w", strconv.FormatFloat(instance.timeLimit+5, 'f', -1, 64)}...) // five extra seconds for wall clock
 	args = append(args, []string{"-x", strconv.FormatFloat(instance.extraTime, 'f', -1, 64)}...)
+	_, err := os.Stat("/etc/alternatives")
+	if !os.IsNotExist(err) {
+		args = append(args, "--dir=etc/alternatives") // for Java, PHP, etc.
+	}
 	if instance.ioMode == 1 {
 		args = append(args, []string{"-i", instance.isolateInputName}...)
 		args = append(args, []string{"-o", instance.isolateOutputName}...)
@@ -163,17 +176,16 @@ func (instance *Instance) checkTLE(props map[string]string) (bool, bool) {
 }
 
 func (instance *Instance) checkRE(props map[string]string) (int, string) {
-	memoryUsageString, maxRssExists := props["max-rss"]
+	memoryUsageString, cgMemExists := props["cg-mem"]
 	exitSig, exitSigExists := props["exitsig"]
 	status := props["status"]
 	memoryUsage, err := strconv.Atoi(memoryUsageString)
-	if !maxRssExists || err != nil ||
+	if !cgMemExists || err != nil ||
 		((memoryUsage > instance.memoryLimit || exitSigExists || strings.TrimSpace(status) == "SG") &&
-			!(exitSigExists && status == "SG")) ||
-		(exitSigExists && strings.TrimSpace(exitSig) != "6" && strings.TrimSpace(exitSig) != "11") {
+			!(exitSigExists && status == "SG")) {
 		return -1, "" // -1 status means log file was corrupted
 	}
-	if !exitSigExists {
+	if strings.TrimSpace(status) != "RE" && strings.TrimSpace(status) != "SG" {
 		return 0, ""
 	} else if memoryUsage > instance.memoryLimit {
 		return 1, strings.TrimSpace(exitSig) // MLE
@@ -185,9 +197,12 @@ func (instance *Instance) checkRE(props map[string]string) (int, string) {
 // Run runs isolate on an Instance
 func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	// Run isolate --run
-	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", instance.boxBinaryName}...)
+	_, runnerScriptName := filepath.Split(instance.runnerScriptPath)
+	args := append(instance.buildIsolateArguments()[:], []string{"--run", "--", runnerScriptName}...)
 	var exitCode int
-	if err := exec.Command(instance.isolateExecPath, args...).Run(); err != nil {
+	output, err := exec.Command(instance.isolateExecPath, args...).CombinedOutput()
+	log.Println(string(output))
+	if err != nil {
 		exitCode = err.(*exec.ExitError).Sys().(syscall.WaitStatus).ExitStatus()
 	} else {
 		exitCode = 0
@@ -219,7 +234,7 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	}
 
 	// Validate fields and extract run metrics from the map
-	memoryUsageString, memoryUsageExists := props["max-rss"]
+	memoryUsageString, memoryUsageExists := props["cg-mem"]
 	timeElapsedString, timeElapsedExists := props["time"]
 	_, wallTimeElapsedExists := props["time-wall"]
 	if !memoryUsageExists || !timeElapsedExists || !wallTimeElapsedExists {
