@@ -37,10 +37,10 @@ func waitForTestResult(manifestInstance taskManifest,
 	var memoryLimit int
 	if limits, exists := manifestInstance.Limits[targLang]; exists {
 		timeLimit = limits.TimeLimit
-		memoryLimit = limits.MemoryLimit * 1000 // Convert to KB
+		memoryLimit = limits.MemoryLimit * 1024 // Convert to KiB
 	} else {
 		timeLimit = manifestInstance.DefaultLimits.TimeLimit
-		memoryLimit = manifestInstance.DefaultLimits.MemoryLimit * 1000
+		memoryLimit = manifestInstance.DefaultLimits.MemoryLimit * 1024
 	}
 
 	// Run isolate job

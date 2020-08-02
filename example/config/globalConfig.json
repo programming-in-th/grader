@@ -1,6 +1,10 @@
 {
   "LangConfig": [
     {
+      "ID": "c11",
+      "Extension": "c"
+    },
+    {
       "ID": "cpp14",
       "Extension": "cpp"
     },
@@ -11,6 +15,10 @@
     {
       "ID": "java8",
       "Extension": "java"
+    },
+    {
+      "ID": "rust",
+      "Extension": "rs"
     }
   ],
   "DefaultMessages": {
