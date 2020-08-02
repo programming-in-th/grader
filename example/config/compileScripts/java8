@@ -17,6 +17,10 @@ javac_capture = subprocess.run(
     stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT)
 
+manifest = open(os.path.join(base_dir, "Manifest"), "w")
+manifest.write("Main-Class: Main")
+manifest.close()
+
 jar_capture = subprocess.run([
     '/usr/bin/jar', 'cvmf',
     os.path.join(base_dir, 'Manifest'), os.path.join(base_dir, 'run.jar'), '-C',
@@ -24,7 +28,9 @@ jar_capture = subprocess.run([
 ])
 
 f = open(os.path.join(base_dir, "compileMsg"), "w")
+f.write(mkdir_capture.stdout.decode("utf-8"))
 f.write(javac_capture.stdout.decode("utf-8"))
+f.write(jar_capture.stdout.decode("utf-8"))
 f.close()
 if not os.path.exists(os.path.join(base_dir, 'run.jar')):
     print(1)
