@@ -6,15 +6,28 @@ import sys
 base_dir = sys.argv[1]
 source_file = sys.argv[2]
 
-capture = subprocess.run(['/usr/bin/javac', '-d', base_dir, source_file],
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT)
+mkdir_capture = subprocess.run(
+    ['/bin/mkdir', os.path.join(base_dir, 'classes')],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT)
+
+javac_capture = subprocess.run(
+    ['/usr/bin/javac', '-d',
+     os.path.join(base_dir, 'classes'), source_file],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT)
+
+jar_capture = subprocess.run([
+    '/usr/bin/jar', 'cvmf',
+    os.path.join(base_dir, 'Manifest'), os.path.join(base_dir, 'run.jar'), '-C',
+    os.path.join(base_dir, 'classes'), '.'
+])
 
 f = open(os.path.join(base_dir, "compileMsg"), "w")
-f.write(capture.stdout.decode("utf-8"))
+f.write(javac_capture.stdout.decode("utf-8"))
 f.close()
-if not os.path.exists(os.path.join(base_dir, 'Main.class')):
+if not os.path.exists(os.path.join(base_dir, 'run.jar')):
     print(1)
 else:
-    print(capture.returncode)
-print(os.path.join(base_dir, 'Main.class'))
+    print(javac_capture.returncode)
+print(os.path.join(base_dir, 'run.jar'))
