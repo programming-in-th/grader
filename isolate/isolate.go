@@ -107,7 +107,7 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 	}
 
 	// Run init command
-	bytes, err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--init").Output()
+	bytes, err := exec.Command(instance.isolateExecPath, "--cg", "-b", strconv.Itoa(instance.boxID), "--init").Output()
 	outputString := strings.TrimSpace(string(bytes))
 	instance.isolateDirectory = path.Join(outputString, "box")
 	if err != nil {
@@ -134,16 +134,18 @@ func (instance *Instance) Init() error { // returns true if finished OK, otherwi
 // Cleanup clears up the box directory for other instances to use
 func (instance *Instance) Cleanup() error { // returns true if finished OK, otherwise returns false
 	os.Remove(instance.logFile) // No need to catch errors on this because duplicate tmp files does nothing
-	err := exec.Command(instance.isolateExecPath, "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
+	err := exec.Command(instance.isolateExecPath, "--cg", "-b", strconv.Itoa(instance.boxID), "--cleanup").Run()
 	return err
 }
 
 func (instance *Instance) buildIsolateArguments() []string {
 	args := make([]string, 0)
+	args = append(args, "--cg")
+	args = append(args, "--cg-timing")
 	args = append(args, []string{"-b", strconv.Itoa(instance.boxID)}...)
 	args = append(args, []string{"-M", instance.logFile}...)
 	args = append(args, []string{"-t", strconv.FormatFloat(instance.timeLimit, 'f', -1, 64)}...)
-	args = append(args, []string{"-m", strconv.Itoa(instance.memoryLimit)}...)
+	args = append(args, "--cg-mem="+strconv.Itoa(instance.memoryLimit))
 	args = append(args, []string{"-w", strconv.FormatFloat(instance.timeLimit+5, 'f', -1, 64)}...) // five extra seconds for wall clock
 	args = append(args, []string{"-x", strconv.FormatFloat(instance.extraTime, 'f', -1, 64)}...)
 	_, err := os.Stat("/etc/alternatives")
@@ -173,11 +175,11 @@ func (instance *Instance) checkTLE(props map[string]string) (bool, bool) {
 }
 
 func (instance *Instance) checkRE(props map[string]string) (int, string) {
-	memoryUsageString, maxRssExists := props["max-rss"]
+	memoryUsageString, cgMemExists := props["cg-mem"]
 	exitSig, exitSigExists := props["exitsig"]
 	status := props["status"]
 	memoryUsage, err := strconv.Atoi(memoryUsageString)
-	if !maxRssExists || err != nil ||
+	if !cgMemExists || err != nil ||
 		((memoryUsage > instance.memoryLimit || exitSigExists || strings.TrimSpace(status) == "SG") &&
 			!(exitSigExists && status == "SG")) {
 		return -1, "" // -1 status means log file was corrupted
@@ -231,7 +233,7 @@ func (instance *Instance) Run() (RunVerdict, RunMetrics) {
 	}
 
 	// Validate fields and extract run metrics from the map
-	memoryUsageString, memoryUsageExists := props["max-rss"]
+	memoryUsageString, memoryUsageExists := props["cg-mem"]
 	timeElapsedString, timeElapsedExists := props["time"]
 	_, wallTimeElapsedExists := props["time-wall"]
 	if !memoryUsageExists || !timeElapsedExists || !wallTimeElapsedExists {
