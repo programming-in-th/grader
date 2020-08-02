@@ -12,9 +12,7 @@ output_path = os.path.join(base_dir, "bin")
 # NOTE: rustc only accepts the .rs file containing main.rs so make sure it is at position 0
 cmd = ["/usr/bin/rustc", "-O", "-o", output_path, compile_files[0]]
 
-capture = subprocess.run(cmd,
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT)
+capture = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 f = open(os.path.join(base_dir, "compileMsg"), "w")
 f.write(capture.stdout.decode("utf-8"))

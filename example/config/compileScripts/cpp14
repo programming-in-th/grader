@@ -14,9 +14,7 @@ cmd = [
     *compile_files, "-o", output_path
 ]
 
-capture = subprocess.run(cmd,
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.STDOUT)
+capture = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 f = open(os.path.join(base_dir, "compileMsg"), "w")
 f.write(capture.stdout.decode("utf-8"))

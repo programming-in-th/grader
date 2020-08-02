@@ -22,7 +22,7 @@ func compileSubmission(submissionID string, taskID string, targLang string, srcP
 	if err != nil {
 		log.Println(errors.Wrap(err, "Compile error: error executing compile script"))
 		log.Println("Args:", args)
-		log.Println("Output:", out)
+		log.Println("Output:", string(out))
 		return false, ""
 	}
 	out_lines := strings.Split(string(out), "\n")
