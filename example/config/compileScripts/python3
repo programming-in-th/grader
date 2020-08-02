@@ -13,7 +13,7 @@ compile_capture = subprocess.run(
     stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT)
 
-f.write(compile_capture.decode("utf-8") + "\n")
+f.write(compile_capture.stdout.decode("utf-8") + "\n")
 if compile_capture.returncode != 0:
     print(1)
     f.close()
@@ -25,7 +25,7 @@ mv_capture = subprocess.run(
     stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT)
 
-f.write(mv_capture.decode("utf-8") + "\n")
+f.write(mv_capture.stdout.decode("utf-8") + "\n")
 if mv_capture.returncode != 0:
     print(1)
     f.close()
