@@ -142,6 +142,7 @@ func (instance *Instance) buildIsolateArguments() []string {
 	args := make([]string, 0)
 	args = append(args, "--cg")
 	args = append(args, "--cg-timing")
+	args = append(args, "--processes=128") // set to high number (like 128) for Java (issue #57 in ioi/isolate)
 	args = append(args, []string{"-b", strconv.Itoa(instance.boxID)}...)
 	args = append(args, []string{"-M", instance.logFile}...)
 	args = append(args, []string{"-t", strconv.FormatFloat(instance.timeLimit, 'f', -1, 64)}...)
