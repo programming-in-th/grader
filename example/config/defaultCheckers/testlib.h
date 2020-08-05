@@ -2429,7 +2429,7 @@ InStream::InStream() {
     stdfile = false;
     wordReserveSize = 4;
     readManyIteration = NO_INDEX;
-    maxFileSize = 128 * 1024 * 1024; // 128MB.
+    maxFileSize = 1024 * 1024 * 1024; // 1GB.
     maxTokenLength = 32 * 1024 * 1024; // 32MB.
     maxMessageLength = 32000;
 }
@@ -2442,7 +2442,7 @@ InStream::InStream(const InStream &baseStream, std::string content) {
     mode = baseStream.mode;
     name = "based on " + baseStream.name;
     readManyIteration = NO_INDEX;
-    maxFileSize = 128 * 1024 * 1024; // 128MB.
+    maxFileSize = 1024 * 1024 * 1024; // 1GB.
     maxTokenLength = 32 * 1024 * 1024; // 32MB.
     maxMessageLength = 32000;
 }
