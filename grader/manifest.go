@@ -186,7 +186,7 @@ func GradeSubmission(submissionID string,
 	// Add compile files to srcFilePaths after defer statement so it doesn't delete
 	if _, exists := manifestInstance.CompileFiles[targLang]; exists {
 		for _, compileFile := range manifestInstance.CompileFiles[targLang] {
-			srcFilePaths = append(srcFilePaths, path.Join(config.BasePath, "tasks", taskID, compileFile))
+			srcFilePaths = append(srcFilePaths, path.Join(config.BasePath, "tasks", taskID, "compileFiles", compileFile))
 		}
 	}
 
