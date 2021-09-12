@@ -183,17 +183,20 @@ func GradeSubmission(submissionID string,
 		return errors.New("Language not supported")
 	}
 
+	// Add compileFiles path to srcFilePaths
+	compileFilePaths := []string{path.Join("-I", config.BasePath, "tasks", taskID, "compileFiles")}
+
 	// Add compile files to srcFilePaths after defer statement so it doesn't delete
 	if _, exists := manifestInstance.CompileFiles[targLang]; exists {
 		for _, compileFile := range manifestInstance.CompileFiles[targLang] {
-			srcFilePaths = append(srcFilePaths, path.Join(config.BasePath, "tasks", taskID, "compileFiles", compileFile))
+			compileFilePaths = append(compileFilePaths, path.Join(config.BasePath, "tasks", taskID, "compileFiles", compileFile))
 		}
 	}
 
 	// Compile program and return CE if fail
 	// TODO: Handle other languages that don't need compiling
 	// TODO: Compile fails without absolute paths
-	compileSuccessful, userBinPath := compileSubmission(submissionID, taskID, targLang, srcFilePaths, config)
+	compileSuccessful, userBinPath := compileSubmission(submissionID, taskID, targLang, srcFilePaths, compileFilePaths, config)
 	if !compileSuccessful {
 		api.SendCompilationErrorMessage(submissionID, syncUpdateChannel)
 		return nil

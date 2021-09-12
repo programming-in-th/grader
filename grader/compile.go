@@ -12,9 +12,10 @@ import (
 )
 
 // Compiles user source into one file according to arguments in manifest.json
-func compileSubmission(submissionID string, taskID string, targLang string, srcPaths []string, config conf.Config) (bool, string) {
+func compileSubmission(submissionID string, taskID string, targLang string, srcPaths []string, compPaths []string, config conf.Config) (bool, string) {
 	args := []string{path.Join(BASE_TMP_PATH, submissionID)}
 	args = append(args, srcPaths...)
+	args = append(args, compPaths...)
 	out, err := exec.Command(
 		path.Join(config.BasePath, "config", "compileScripts", targLang),
 		args...,
