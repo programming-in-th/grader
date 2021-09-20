@@ -2,7 +2,7 @@
 
 # Programming.in.th Grader
 
-Work in progress
+Work in progress (DEPRECATED, superseded by [Rusty Grader](https://github.com/programming-in-th/rusty-grader/))
 
 **NOTE: Always chmod all scripts (all as in scripts within every subfolder of) the config directory**
 **NOTE: README not yet complete for this version**
